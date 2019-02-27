@@ -345,9 +345,9 @@ def Solve(HR, LR, matHR, matLR, niter, verbosity = 0):
         Sa[Sa < 0] = 0
         SL[SL < 0] = 0
 
-        vec[i] = np.sum((LR - np.dot(Sa, matLR))**2*wvar_LR) + np.sum((HR-np.dot(Sa, matHR))**2*wvar_LR)
-        vec2[i] = np.sum((LR - np.dot(SL, matLR))**2)
-        vec3[i] = np.sum((HR - np.dot(SH, matHR))**2)
+        vec[i] = np.std((LR - np.dot(Sa, matLR))**2*wvar_LR) + np.sum((HR-np.dot(Sa, matHR))**2*wvar_LR)
+        vec2[i] = np.std((LR - np.dot(SL, matLR))**2)
+        vec3[i] = np.std((HR - np.dot(SH, matHR))**2)
     #    plt.subplot(121)
     #    plt.imshow((LR - np.dot(Sall, matLR)).reshape(N1,N2))
     #    plt.subplot(122)

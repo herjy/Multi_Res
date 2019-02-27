@@ -183,8 +183,8 @@ Y=Y.flatten()#reshape(1,Y.size)
 
 
 
-xxp = np.linspace(-n1/2,n1/2,n1)
-yyp = np.linspace(-n2/2,n2/2,n2)
+xxp = np.linspace(-n1/4,n1/4,n1)
+yyp = np.linspace(-n2/4,n2/4,n2)
 xp, yp = np.meshgrid(xxp,yyp)
 xp=xp.flatten()#reshape(1,x.size)
 yp=yp.flatten()
@@ -199,10 +199,10 @@ colourLR[1,:,:] = Image(f2, X, Y)
 colourLR[2,:,:] = Image(f3, X, Y)
 #+np.random.randn(N1, N2)*np.max(Image(f1, x, y))/10
 
-n_blobs = 3
+n_blobs = 5
 print('number of blobs: ', np.int(n_blobs))
 
-xy = np.random.rand(2, n_blobs)*14-7
+xy = np.random.rand(2, n_blobs)*16-8
 print('positions of blobs: ', xy)
 
 sig = np.random.rand(1, n_blobs)*2.+0.5
@@ -252,14 +252,14 @@ print('Low resolution operator')
 
 #hdus = pf.PrimaryHDU(mat_LR)
 #lists = pf.HDUList([hdus])
-#lists.writeto('mat_LR2d.fits', clobber=True)
+#lists.writeto('mat_LR2d_PSFHR.fits', clobber=True)
 
 print('High resolution operator')
 #mat_HR = make_mat(x, y, x, y, PSF_HR, x, y, xp0, yp0)
 
 #hdus = pf.PrimaryHDU(mat_HR)
 #lists = pf.HDUList([hdus])
-#lists.writeto('mat_HR2d.fits', clobber=True)
+#lists.writeto('mat_HR2d_PSFHR.fits', clobber=True)
 
 
 mat_LR = pf.open('mat_LR2d.fits')[0].data
@@ -281,8 +281,13 @@ plt.subplot(133)
 plt.imshow(YLR.reshape(N1,N2), interpolation = None, cmap = 'gist_stern')
 plt.show()
 
-sigma_HR = np.max(YHR)/20
-sigma_LR = np.max(YLR)/200
+
+SNR_HR = 50
+SNR_LR = 500
+sigma_HR = np.sqrt(np.sum(YHR**2)/SNR_HR/(n1*n2))
+sigma_LR = np.sqrt(np.sum(YLR**2)/SNR_LR/(N1*N2))
+#sigma_HR = np.max(YHR)/20
+#sigma_LR = np.max(YLR)/200
 
 YLR+=np.random.randn(YLR.size)*sigma_LR
 YHR+=np.random.randn(YHR.size)*sigma_HR
@@ -290,7 +295,6 @@ YHR+=np.random.randn(YHR.size)*sigma_HR
 var_norm = 1./sigma_HR**2 + 1./sigma_LR**2
 wvar_HR = (1./sigma_HR**2)*(1./var_norm)
 wvar_LR = (1./sigma_LR**2)*(1./var_norm)
-
 
 niter = 10000
 mu1 = linormmat(mat_LR, 20)/10.
@@ -312,9 +316,9 @@ for i in range(niter):
     Sall[Sall < 0] = 0
     SLR[SLR < 0] = 0
     SHR[SHR < 0] = 0
-    vec[i] = np.sum((YLR - np.dot(Sall, mat_LR))**2*wvar_LR) + np.sum((YHR-np.dot(Sall, mat_HR))**2*wvar_LR)
-    vec2[i] = np.sum((YLR - np.dot(SLR, mat_LR))**2)
-    vec3[i] = np.sum((YHR - np.dot(SHR, mat_HR))**2)
+    vec[i] = np.std((YLR - np.dot(Sall, mat_LR)))/sigma_LR + np.std((YHR-np.dot(Sall, mat_HR)))/sigma_HR
+    vec2[i] = np.std((YLR - np.dot(SLR, mat_LR)))/sigma_LR
+    vec3[i] = np.std((YHR - np.dot(SHR, mat_HR)))/sigma_HR
 
 plt.plot(vec, 'b', label = 'All', linewidth = 2)
 plt.plot(vec2, 'r', label = 'LR', linewidth = 3)
@@ -359,22 +363,27 @@ plt.title('Residuals HR')
 plt.axis('off')
 plt.show()
 
-objects_truth = sep.extract(Im_HR, 3*sigma_HR, deblend_cont = 0.01)
-objects_HR = sep.extract(SHR, 3*sigma_HR, deblend_cont = 0.01)
-objects_LR = sep.extract(SLR, 3*sigma_HR, deblend_cont = 0.01)
-objects_all = sep.extract(Sall, 3*sigma_HR, deblend_cont = 0.01)
-print(objects_truth['x'],xy.T+15)
-plt.plot(xy.T+15, 'kx', label = 'truth')
-plt.plot(objects_truth['x'],objects_truth['y'], 'bx', label = 'Original')
-plt.plot(objects_HR['x'],objects_HR['y'], 'cx', label = 'HR')
-plt.plot(objects_LR['x'],objects_LR['y'], 'mx', label = 'LR')
-plt.plot(objects_all['x'],objects_all['y'], 'rx', label = 'All')
+objects_truth = sep.extract(Y0, sigma_LR/2)#, deblend_cont = 0.01)
+objects_HR = sep.extract(SHR, sigma_LR/2)#, deblend_cont = 0.01)
+objects_LR = sep.extract(SLR, sigma_LR/2)#, deblend_cont = 0.01)
+objects_all = sep.extract(Sall, sigma_LR/2)#, deblend_cont = 0.01)
+print(xy.T+15)
+plt.imshow(Y0, interpolation = None, cmap = 'gray')
+plt.plot(xy[0,:]+15, xy[1,:]+15, 'xk', label = 'truth', ms = 10, mew = 5)
+plt.plot(objects_truth['x'],objects_truth['y'], 'xb', label = 'Original', ms = 10, mew = 5)
+plt.plot(objects_HR['x'],objects_HR['y'], 'xc', label = 'HR', ms = 10, mew = 5)
+plt.plot(objects_LR['x'],objects_LR['y'], 'xg', label = 'LR', ms = 10, mew = 5)
+plt.plot(objects_all['x'],objects_all['y'], 'xr', label = 'All', ms = 10, mew = 5)
 plt.legend()
 plt.axis([0,30,0,30])
 plt.show()
 
 
 stop
+###################################################################################
+###################################################################################
+###################################################################################
+###################################################################################
 ###################################################################################
 Y_LR = np.zeros((3, X.size))
 Y_LR[0, :] = np.dot(f1(x, y), mat_LR)
