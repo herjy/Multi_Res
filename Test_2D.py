@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal as scp
 import sep
+import tools
 import pyfits as pf
 import scarlet.display
 import warnings
@@ -12,152 +13,13 @@ def G(x, y, x0, y0, sigma):
             np.exp(-((x-x0)**2.+(y-y0)**2)/(2*sigma**2))
     return G
 
-def linormmat(S, nit):
-    """
-      Estimates the maximal eigen value of a matrix A
-
-      INPUTS:
-          A: matrix
-          nit: number of iterations
-
-      OUTPUTS:
-          xn: maximal eigen value
-
-       EXAMPLES
-
-    """
-
-    n1, n2 = np.shape(S)
-    x0 = np.random.rand(1, n1)
-    x0 = x0 / np.sqrt(np.sum(x0 ** 2))
-
-    for i in range(nit):
-        x = np.dot(x0, S)
-        xn = np.sqrt(np.sum(x ** 2))
-        xp = x / xn
-        y = np.dot( xp, S.T)
-        yn = np.sqrt(np.sum(y ** 2))
-
-        if yn < np.dot(y, x0.T):
-            break
-        x0 = y / yn
-
-    return 1./xn
-
 def S(a, b, n, XY, s0):
     f = 0
     for i in range(n_blobs):
         f = f+ G(a, b, XY[0,i], XY[1,i], s0[0,i])*(np.random.rand(1)*2+1)
     return f
 
-def s1(a, b):
-    return G(a, b, -1, -3, 2)
 
-def s2(a, b):
-    return G(a, b, 3, 2, 2)
-
-def p1(a, b):
-    return G(a, b, 0, 0, 1.5)  # /np.sum(G(x,3.))
-
-def p2(a, b):
-    return G(a, b, 0, 0, 4.)
-
-def sinc(a):
-    if a == 0:
-        return 1.
-    else:
-        return np.sin(a)/a
-
-def f1(a, b):
-    return 0.1*s1(a, b)+0.8*s2(a, b)
-
-def f2(a, b):
-    return 0.3*s1(a, b)+0.15*s2(a, b)
-
-def f3(a, b):
-    return 0.6*s1(a,b)+0.05*s2(a, b)
-
-def Image(f, a, b):
-    n1 = np.sqrt(a.size)
-    Img = np.zeros((n1, n1))
-    xgrid, ygrid = np.where(np.zeros((n1, n1)) == 0)
-
-    Img[xgrid, ygrid] = f(a, b)
-    return Img
-
-print('building operator:')
-
-def conv(xp, yp, xk, yk, xm, ym, p, xpp, ypp, h):
-    # x: numpy array, high resolution sampling
-    # X: numpy array, low resolution sampling
-    # p: numpy array, psf sampled at high resolution
-    # xm: scalar, location of sampling in thelow resolution grid
-    Fm = 0
-
-    for i in range(np.size(xp)):
-        Fm += sinc((xm-(xk+xp[i]))/h)*sinc((ym-(yk+yp[i]))/h)*p[xpp[i], ypp[i]]
-    return Fm*h/np.pi
-
-def make_vec(a, b, xm, ym, p, xp, yp, xpp, ypp, h):
-    vec = np.zeros(a.size)
-
-    for k in range(np.size(a)):
-
-        vec[k] = conv(xp, yp, a[k], b[k], xm, ym, p, xpp, ypp, h)
-
-    return vec.flatten()
-
-def make_mat(a, b, A, B, p, xp, yp, xpp,ypp):
-    mat = np.zeros((a.size, B.size))
-    h = a[1]-a[0]
-    assert h!=0
-    c = 0
-    for m in range(np.size(B)):
-            mat[:, c] = make_vec(a, b, A[m], B[m], p, xp, yp, xpp, ypp, h)
-            c += 1
-    return mat
-
-def make_filter(a, b, A, B, p, xp, yp, xpp, ypp):
-    ## Low resolution sampling
-    H=A[1]-A[0]
-    h=a[1]-a[0]
-    xm0=np.array(A[len(A)/2])
-    ym0=np.array(B[len(B)/2])
-
-    ma=np.min(a)
-    Ma=np.max(a)
-    mb=np.min(b)
-    Mb=np.max(b)
-    N=len(A)
-    n=len(a)
-    #Extension of the sampling to account for sinc edges
-    xx=np.linspace(ma-n, Ma+n, 3*n+1)
-    yy=np.linspace(mb-n, Mb+n, 3*n+1)
-
-    # On essaie, mais je crois que c'est xpp ypp en vrai
-    xxp,yyp = np.where(np.zeros(((3*n+1)**0.5,(3*n+1)**0.5))==0)
-
-    return make_vec(xx, yy, xm0, ym0, p, xx, yy, xpp, ypp, h)*(1-np.float(len(a))/len(xx))
-
-def make_mat_alt(a, b, A, B, p, xp, yp, xpp, ypp):
-    vec = make_filter(a, b, A, B, p, xp, yp, xpp, ypp)
-
-    mat = np.zeros((a.size, A.size))
-    n = np.size(vec)
-    h =A[1]-A[0]
-    print(vec.shape, mat.shape, n)
-    for k in range(A.size):
-        mat[:,k] = vec[n+n/2-k*h : 2*n+n/2-k*h]/h
-    return mat
-
-def interp(a, b, A, B, Fm):
-    # x: High resolution target grid
-    # X: Input grid
-    # Fm: Samples at positions X
-    hx = np.abs(A[1]-A[0])
-    hy = np.abs(B[np.sqrt(B.size)+1] - B[0])
-    print(hx,hy)
-    return np.array([Fm[k] * np.sinc((a-A[k])/(hx)) * np.sinc((b-B[k])/(hy)) for k in range(len(A))]).sum(axis=0)
 
 ##########################################################################################
 ##########################################################################################
@@ -181,23 +43,11 @@ X,Y = np.meshgrid(XX,YY)
 X=X.flatten()#reshape(1,X.size)
 Y=Y.flatten()#reshape(1,Y.size)
 
-
-
 xxp = np.linspace(-n1/4,n1/4,n1)
 yyp = np.linspace(-n2/4,n2/4,n2)
 xp, yp = np.meshgrid(xxp,yyp)
 xp=xp.flatten()#reshape(1,x.size)
 yp=yp.flatten()
-
-colourHR = np.zeros((3, n1,n2))
-colourHR[0,:,:] = Image(f1, x, y)
-colourHR[1,:,:] = Image(f2, x, y)
-colourHR[2,:,:] = Image(f3, x, y)
-colourLR = np.zeros((3, N1,N2))
-colourLR[0,:,:] = Image(f1, X, Y)
-colourLR[1,:,:] = Image(f2, X, Y)
-colourLR[2,:,:] = Image(f3, X, Y)
-#+np.random.randn(N1, N2)*np.max(Image(f1, x, y))/10
 
 n_blobs = 5
 print('number of blobs: ', np.int(n_blobs))
@@ -211,13 +61,10 @@ print('width of blobs: ', sig)
 def F(a,b):
     return S(a,b,n_blobs,xy,sig)
 
-Im_HR = Image(F, x, y)
-Im_LR = Image(F, X, Y)
+Im_HR = tools.Image(F, x, y)
+Im_LR = tools.Image(F, X, Y)
 
-S1 = Image(s1,x, y)
-S2 = Image(s2,x, y)
-
-Interp = interp(x, y, X, Y, Im_LR.reshape(N1*N2)).reshape((n1, n2))
+Interp = tools.interp2D(x, y, X, Y, Im_LR.reshape(N1*N2)).reshape((n1, n2))
 
 plt.subplot(221)
 plt.imshow(Im_HR, interpolation=None, cmap='gist_stern',
@@ -236,8 +83,8 @@ plt.imshow(Im_HR-Interp, interpolation=None, cmap='gist_stern')
 plt.colorbar()
 plt.show()
 
-PSF_HR = Image(p1,xp,yp)
-PSF_LR = Image(p2,xp,yp)
+PSF_HR = tools.Image(p1,xp,yp)
+PSF_LR = tools.Image(p2,xp,yp)
 print(PSF_HR.shape)
 plt.subplot(121)
 plt.imshow(PSF_HR)
@@ -248,14 +95,14 @@ plt.show()
 xp0,yp0 = np.where(PSF_HR*0==0)
 
 print('Low resolution operator')
-#mat_LR = make_mat(x, y, X, Y, PSF_LR, x, y, xp0, yp0)
+#mat_LR = tools.make_mat2D(x, y, X, Y, PSF_LR, x, y, xp0, yp0)
 
 #hdus = pf.PrimaryHDU(mat_LR)
 #lists = pf.HDUList([hdus])
 #lists.writeto('mat_LR2d_PSFHR.fits', clobber=True)
 
 print('High resolution operator')
-#mat_HR = make_mat(x, y, x, y, PSF_HR, x, y, xp0, yp0)
+#mat_HR = tools.make_mat2D(x, y, x, y, PSF_HR, x, y, xp0, yp0)
 
 #hdus = pf.PrimaryHDU(mat_HR)
 #lists = pf.HDUList([hdus])
@@ -266,7 +113,7 @@ mat_LR = pf.open('mat_LR2d.fits')[0].data
 mat_HR = pf.open('mat_HR2d.fits')[0].data
 
 
-Y0 = Image(F,x,y)
+Y0 = tools.Image(F,x,y)
 
 print('Now lets solve this!')
 
@@ -286,44 +133,14 @@ SNR_HR = 50
 SNR_LR = 500
 sigma_HR = np.sqrt(np.sum(YHR**2)/SNR_HR/(n1*n2))
 sigma_LR = np.sqrt(np.sum(YLR**2)/SNR_LR/(N1*N2))
-#sigma_HR = np.max(YHR)/20
-#sigma_LR = np.max(YLR)/200
+
 
 YLR+=np.random.randn(YLR.size)*sigma_LR
 YHR+=np.random.randn(YHR.size)*sigma_HR
 
-var_norm = 1./sigma_HR**2 + 1./sigma_LR**2
-wvar_HR = (1./sigma_HR**2)*(1./var_norm)
-wvar_LR = (1./sigma_LR**2)*(1./var_norm)
-
 niter = 10000
-mu1 = linormmat(mat_LR, 20)/10.
-mu2 = linormmat(mat_HR, 20)/10.
-print(mu1, mu2)
-Sall = np.zeros((x.size))
-SHR = np.zeros((x.size))
-SLR = np.zeros((x.size))
-vec = np.zeros(niter)
-vec2 = np.zeros(niter)
-vec3 = np.zeros(niter)
-for i in range(niter):
-    if i % 1000+1 == True:
-        print(i)
-    Sall += mu2 * np.dot(YLR - np.dot(Sall, mat_LR), mat_LR.T)*wvar_LR + \
-        mu1 * np.dot(YHR-np.dot(Sall, mat_HR), mat_HR.T)*wvar_HR
-    SLR += mu2 * np.dot(YLR - np.dot(SLR, mat_LR), mat_LR.T)
-    SHR += mu1 * np.dot(YHR - np.dot(SHR, mat_HR), mat_HR.T)
-    Sall[Sall < 0] = 0
-    SLR[SLR < 0] = 0
-    SHR[SHR < 0] = 0
-    vec[i] = np.std((YLR - np.dot(Sall, mat_LR)))/sigma_LR + np.std((YHR-np.dot(Sall, mat_HR)))/sigma_HR
-    vec2[i] = np.std((YLR - np.dot(SLR, mat_LR)))/sigma_LR
-    vec3[i] = np.std((YHR - np.dot(SHR, mat_HR)))/sigma_HR
 
-plt.plot(vec, 'b', label = 'All', linewidth = 2)
-plt.plot(vec2, 'r', label = 'LR', linewidth = 3)
-plt.plot(vec3, 'g', label = 'HR', linewidth = 4)
-plt.show()
+Sall, SHR, SLR = tools.Combine2D(YHR, YLR, mat_HR, mat_LR, niter, verbosity = 1)
 
 Sall = Sall.reshape(n1,n2)
 SLR = SLR.reshape(n1,n2)
@@ -380,11 +197,33 @@ plt.show()
 
 
 stop
-###################################################################################
-###################################################################################
-###################################################################################
-###################################################################################
-###################################################################################
+################################################################################################################
+################################################################################################################
+################################################################################################################
+################################################################################################################
+################################################################################################################
+def s1(a, b):
+    return G(a, b, -1, -3, 2)
+
+def s2(a, b):
+    return G(a, b, 3, 2, 2)
+
+def p1(a, b):
+    return G(a, b, 0, 0, 1.5)  # /np.sum(G(x,3.))
+
+def p2(a, b):
+    return G(a, b, 0, 0, 4.)
+
+def f1(a, b):
+    return 0.1*s1(a, b)+0.8*s2(a, b)
+
+def f2(a, b):
+    return 0.3*s1(a, b)+0.15*s2(a, b)
+
+def f3(a, b):
+    return 0.6*s1(a,b)+0.05*s2(a, b)
+
+
 Y_LR = np.zeros((3, X.size))
 Y_LR[0, :] = np.dot(f1(x, y), mat_LR)
 Y_LR[1, :] = np.dot(f2(x, y), mat_LR)

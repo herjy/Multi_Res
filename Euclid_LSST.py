@@ -364,7 +364,7 @@ def Solve(HR, LR, matHR, matLR, niter, verbosity = 0):
 Y_LR = LSST.flatten()
 Y_HR = Euclid.flatten()
 Niter = 30000
-Sall, SHR, SLR = Solve(Y_HR, Y_LR, mat_HR, mat_LR, Niter)
+Sall, SHR, SLR = tools.Combine2D(Y_HR, Y_LR, mat_HR, mat_LR, Niter)
 
 if 1:
     plt.subplot(331)
