@@ -2,7 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal as scp
 import SLIT
+import MuSCADeT as wine
 import sep
+import scipy.ndimage.filters as med
 import pyfits as pf
 import scarlet.display
 import warnings
@@ -190,6 +192,44 @@ def linorm2D(S, nit):
 
     return 1./xn
 
+def MAD(x,n=3):
+    ##DESCRIPTION:
+    ##  Estimates the noise standard deviation from Median Absolute Deviation
+    ##
+    ##INPUTS:
+    ##  -x: a 2D image for which we look for the noise levels.
+    ##
+    ##OPTIONS:
+    ##  -n: size of the median filter. Default is 3.
+    ##
+    ##OUTPUTS:
+    ##  -S: the source light profile.
+    ##  -FS: the lensed version of the estimated source light profile
+    xw = wine.wave_transform.wave_transform(x, np.int(np.log2(x.shape[0])))[0,:,:]
+    meda = med.median_filter(xw,size = (n,n))
+    medfil = np.abs(xw-meda)#np.median(x))
+    sh = np.shape(xw)
+    sigma = 1.48*np.median((medfil))
+    return sigma
+
+def get_psf(Field,x,y,n):
+    assert len(x)==len(y)
+    PSF = 0.
+    xy0 = n/2
+    print(x,y)
+    for i in range(len(x)):
+        print(x[i],y[i])
+        Star = Field[x[i]-xy0:x[i]+xy0,y[i]-xy0:y[i]+xy0]
+
+        xm,ym = np.where(Star == np.max(Star))
+        xp = x[i]+(xm-xy0)
+        yp = y[i]+(ym-xy0)
+        Star = Field[xp-xy0:xp+xy0,yp-xy0:yp+xy0]
+
+        sigma = MAD(Star, n=3)
+        PSF+= wine.MCA.mr_filter(Star, 20, 5, sigma, lvl = np.int(np.log2(n)))[0]
+
+    return PSF
 
 def Combine2D(HR, LR, matHR, matLR, niter, verbosity = 0):
 
@@ -202,9 +242,10 @@ def Combine2D(HR, LR, matHR, matLR, niter, verbosity = 0):
     wvar_HR = (1./sigma_HR**2)*(1./var_norm)
     wvar_LR = (1./sigma_LR**2)*(1./var_norm)
 
-    mu1 = linorm2D(matHR, 10)/1.
-    mu2 = linorm2D(matLR, 10)
-    print(mu1, mu2)
+    mu1 = linorm2D(matHR, 10)/100.
+    mu2 = linorm2D(matLR, 10)/10.
+    mu = (mu1+mu2)/2.
+
     Sa = np.zeros((HR.size))
     SH = np.zeros((HR.size))
     SL = np.zeros((HR.size))
@@ -212,10 +253,9 @@ def Combine2D(HR, LR, matHR, matLR, niter, verbosity = 0):
     vec2 = np.zeros(niter)
     vec3 = np.zeros(niter)
     for i in range(niter):
-        if i % 1000+1 == True:
+        if (i % 1000+1 == True) and (verbosity == 1):
             print(i)
-        Sa += mu2 * np.dot(LR - np.dot(Sa, matLR), matLR.T)*wvar_HR \
-            + mu1 * np.dot(HR-np.dot(Sa, matHR), matHR.T)*wvar_LR
+        Sa += mu * np.dot(LR - np.dot(Sa, matLR), matLR.T)*wvar_LR + mu * np.dot(HR-np.dot(Sa, matHR), matHR.T)*wvar_HR
     #plt.imshow(Sall.reshape(n1,n2)); plt.savefig('fig'+str(i))
 
         SL += mu2 * np.dot(LR - np.dot(SL, matLR), matLR.T)

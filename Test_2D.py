@@ -19,7 +19,11 @@ def S(a, b, n, XY, s0):
         f = f+ G(a, b, XY[0,i], XY[1,i], s0[0,i])*(np.random.rand(1)*2+1)
     return f
 
+def p1(a, b):
+    return G(a, b, 0, 0, 1.5)  # /np.sum(G(x,3.))
 
+def p2(a, b):
+    return G(a, b, 0, 0, 4.)
 
 ##########################################################################################
 ##########################################################################################
@@ -129,11 +133,12 @@ plt.imshow(YLR.reshape(N1,N2), interpolation = None, cmap = 'gist_stern')
 plt.show()
 
 
-SNR_HR = 50
-SNR_LR = 500
+SNR_HR = 5
+SNR_LR = 1000
 sigma_HR = np.sqrt(np.sum(YHR**2)/SNR_HR/(n1*n2))
 sigma_LR = np.sqrt(np.sum(YLR**2)/SNR_LR/(N1*N2))
 
+print('sigma: ', sigma_HR, sigma_LR)
 
 YLR+=np.random.randn(YLR.size)*sigma_LR
 YHR+=np.random.randn(YHR.size)*sigma_HR
@@ -184,11 +189,15 @@ objects_truth = sep.extract(Y0, sigma_LR/2)#, deblend_cont = 0.01)
 objects_HR = sep.extract(SHR, sigma_LR/2)#, deblend_cont = 0.01)
 objects_LR = sep.extract(SLR, sigma_LR/2)#, deblend_cont = 0.01)
 objects_all = sep.extract(Sall, sigma_LR/2)#, deblend_cont = 0.01)
-print(xy.T+15)
+
+xc,yc = np.meshgrid(np.linspace(0,n1-1,n1),np.linspace(0,n2-1,n2))
 plt.imshow(Y0, interpolation = None, cmap = 'gray')
+plt.contour(xc, yc, Sall, 5, cmap = 'Reds')
+plt.contour(xc, yc, SLR, 5, cmap = 'Greens')
+plt.contour(xc, yc, SHR, 5, cmap = 'Blues')
 plt.plot(xy[0,:]+15, xy[1,:]+15, 'xk', label = 'truth', ms = 10, mew = 5)
-plt.plot(objects_truth['x'],objects_truth['y'], 'xb', label = 'Original', ms = 10, mew = 5)
-plt.plot(objects_HR['x'],objects_HR['y'], 'xc', label = 'HR', ms = 10, mew = 5)
+plt.plot(objects_truth['x'],objects_truth['y'], 'xc', label = 'Original', ms = 10, mew = 5)
+plt.plot(objects_HR['x'],objects_HR['y'], 'xb', label = 'HR', ms = 10, mew = 5)
 plt.plot(objects_LR['x'],objects_LR['y'], 'xg', label = 'LR', ms = 10, mew = 5)
 plt.plot(objects_all['x'],objects_all['y'], 'xr', label = 'All', ms = 10, mew = 5)
 plt.legend()
@@ -207,12 +216,6 @@ def s1(a, b):
 
 def s2(a, b):
     return G(a, b, 3, 2, 2)
-
-def p1(a, b):
-    return G(a, b, 0, 0, 1.5)  # /np.sum(G(x,3.))
-
-def p2(a, b):
-    return G(a, b, 0, 0, 4.)
 
 def f1(a, b):
     return 0.1*s1(a, b)+0.8*s2(a, b)
