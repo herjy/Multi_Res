@@ -219,12 +219,12 @@ def get_psf(Field,x,y,n):
     print(x,y)
     for i in range(len(x)):
         print(x[i],y[i])
-        Star = Field[x[i]-xy0:x[i]+xy0,y[i]-xy0:y[i]+xy0]
+        Star = Field[x[i]-xy0:x[i]+xy0+1,y[i]-xy0:y[i]+xy0+1]
 
         xm,ym = np.where(Star == np.max(Star))
         xp = x[i]+(xm-xy0)
         yp = y[i]+(ym-xy0)
-        Star = Field[xp-xy0:xp+xy0,yp-xy0:yp+xy0]
+        Star = Field[xp-xy0:xp+xy0+1,yp-xy0:yp+xy0+1]
 
         sigma = MAD(Star, n=3)
         PSF+= wine.MCA.mr_filter(Star, 20, 5, sigma, lvl = np.int(np.log2(n)))[0]

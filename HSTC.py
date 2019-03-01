@@ -45,17 +45,32 @@ lists.writeto('PSF_HST.fits', clobber=True)
 PSF_HSC = tools.get_psf(FHSC, Xpsf, Ypsf, 41)
 PSF_HSC[PSF_HSC<0] = 0
 PSF_HSC_data = PSF_HSC/np.sum(PSF_HSC)
-x,y = np.where(PSF_HSC*0==0)
-PSF_HSC_data[y>-x/2+60] = 0
+xx,yy = np.where(PSF_HSC*0 == 0)
+r = np.sqrt((xx-20)**2+(yy-20)**2).reshape(41,41)
+
+PSF_HSC_data[r>15]=0
+hdus = fits.PrimaryHDU(PSF_HSC_data)
+lists = fits.HDUList([hdus])
+lists.writeto('PSF_HSC_Data.fits', clobber=True)
+
+print(PSF_HSC_data.shape)
 
 PSF_HSC = fits.open('/Users/remy/Desktop/LSST_Project/Multi_Resolution/HS_TC/PSF_HSC.fits')[0].data
+xd = np.linspace(0,40,41)
+yd = np.linspace(0,40,41)
+xxd,yyd = np.meshgrid(xd,yd)
+x0 = np.linspace(0,40,40)
+y0 = np.linspace(0,40,40)
+xx0,yy0 = np.meshgrid(x0,y0)
+
+#PSF_HSC = tools.interp2D(xx.flatten(),yyd.flatten(),xx0.flatten(), yy0.flatten(), PSF_HSC.flatten()).reshape(41,41)
 
 plt.subplot(131)
 plt.imshow(np.log10(PSF_HSC_data), interpolation = 'nearest'); plt.colorbar()
 plt.subplot(132)
 plt.imshow(np.log10(PSF_HSC), interpolation = 'nearest'); plt.colorbar()
 plt.subplot(133)
-plt.imshow(np.log10(PSF_HSC[:-1,:-1]/PSF_HSC_data), interpolation = 'nearest'); plt.colorbar()
+plt.imshow(np.log10(PSF_HSC-PSF_HSC_data), interpolation = 'nearest'); plt.colorbar()
 plt.show()
 
 
