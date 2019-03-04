@@ -112,12 +112,12 @@ print('High resolution operator')
 #lists.writeto('mat_HR2d_PSFHR.fits', clobber=True)
 
 
-mat_LR = pf.open('../mat_LR2d.fits')[0].data
-mat_HR = pf.open('../mat_HR2d.fits')[0].data
+mat_LR = pf.open('mat_LR2d_PSFHR.fits')[0].data
+mat_HR = pf.open('mat_HR2d_PSFHR.fits')[0].data
 
 Y0 = tools.Image(F,x,y)
 
-x1 = mat_HR[:,n1*n1/2]#np.concatenate(( mat_LR[-1,:], mat_HR[0,1:]))#
+x1 = mat_HR[:,np.int(n1*n1/2)]#np.concatenate(( mat_LR[-1,:], mat_HR[0,1:]))#
 
 print(x1.size)
 
