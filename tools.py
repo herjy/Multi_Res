@@ -209,7 +209,7 @@ def MAD(x,n=3):
     ##OUTPUTS:
     ##  -S: the source light profile.
     ##  -FS: the lensed version of the estimated source light profile
-    xw = wine.wave_transform(x, np.int(np.log2(x.shape[0])))[0,:,:]
+    xw = wine.wave_transform.wave_transform(x, np.int(np.log2(x.shape[0])))[0,:,:]
     meda = med.median_filter(xw,size = (n,n))
     medfil = np.abs(xw-meda)#np.median(x))
     sh = np.shape(xw)
@@ -222,8 +222,7 @@ def get_psf(Field,x,y,n):
     xy0 = np.int(n/2)
     for i in range(len(x)):
         Star = Field[np.int(x[i]-xy0):np.int(x[i]+xy0+1),np.int(y[i]-xy0):np.int(y[i]+xy0+1)]
-        plt.imshow(np.log10(Star)); plt.show()
-        print(x[i],y[i])
+
         xm,ym = np.where(Star == np.max(Star))
         xp = x[i]+(xm-xy0)
         yp = y[i]+(ym-xy0)
@@ -284,3 +283,89 @@ def Combine2D(HR, LR, matHR, matLR, niter, verbosity = 0):
         plt.show()
 
     return Sa, SH, SL
+
+
+def linorm2D_filter(filter, filterT, shape, nit):
+    """
+      Estimates the maximal eigen value of a matrix A
+
+      INPUTS:
+          A: matrix
+          nit: number of iterations
+
+      OUTPUTS:
+          xn: maximal eigen value
+
+       EXAMPLES
+
+    """
+
+    n1 = shape
+    x0 = np.random.rand(1, n1)
+    x0 = x0 / np.sqrt(np.sum(x0 ** 2))
+
+    for i in range(nit):
+        x = filter(x0)
+        xn = np.sqrt(np.sum(x ** 2))
+        xp = x / xn
+        y = filterT(xp)
+        yn = np.sqrt(np.sum(y ** 2))
+
+        if yn < np.dot(y, x0.T):
+            break
+        x0 = y / yn
+
+    return 1./xn
+
+def Combine2D_filter(HR, LR, filter_HR, filter_HRT, filter_LR, filter_LRT, niter, verbosity = 0):
+
+    n = HR.size
+    N = LR.size
+    sigma_HR = SLIT.tools.MAD(HR.reshape(n**0.5, n**0.5))
+    sigma_LR = SLIT.tools.MAD(LR.reshape(N**0.5, N**0.5))
+
+    var_norm = 1./sigma_HR**2 + 1./sigma_LR**2
+    wvar_HR = (1./sigma_HR**2)*(1./var_norm)
+    wvar_LR = (1./sigma_LR**2)*(1./var_norm)
+
+    mu1 = linorm2D_filter(filter_HR, filter_HRT, HR.size, 10)/100.
+    mu2 = linorm2D_filter(filter_LR, filter_LRT, HR.size, 10)/10.
+    mu = (mu1+mu2)/2.
+
+
+
+    Sa = np.zeros((HR.size))
+    SH = np.zeros((HR.size))
+    SL = np.zeros((HR.size))
+    vec = np.zeros(niter)
+    vec2 = np.zeros(niter)
+    vec3 = np.zeros(niter)
+    for i in range(niter):
+        if (i % 1000+1 == True) and (verbosity == 1):
+            print(i)
+        Sa += mu * filter_LRT(LR - filter_LR(Sa))*wvar_LR + mu * filter_HRT(HR-np.filter_HR(Sa))*wvar_HR
+    #plt.imshow(Sall.reshape(n1,n2)); plt.savefig('fig'+str(i))
+
+        SL += mu2 * filter_LRT(LR - filter_LR(Sa))
+        if i < 10000:
+            SH += mu1 * filter_HRT(HR-np.filter_HR(Sa))
+            SH[SH < 0] = 0
+        Sa[Sa < 0] = 0
+        SL[SL < 0] = 0
+
+        vec[i] = np.std(LR - filter_LR(Sa))**2/2. + np.std(HR-filter_HR(Sa))**2*wvar_LR/2.
+        vec2[i] = np.std(LR - filter_LR(SL))**2
+        vec3[i] = np.std(HR - filter_HR(SH))**2
+    #    plt.subplot(121)
+    #    plt.imshow((LR - np.dot(Sall, matLR)).reshape(N1,N2))
+    #    plt.subplot(122)
+    #    plt.imshow((HR - np.dot(Sall, matHR)).reshape(n1,n2))
+    #    plt.show()
+    if verbosity == 1:
+        plt.plot(vec, 'b', label = 'All', linewidth = 2)
+        plt.plot(vec2, 'r', label = 'LR', linewidth = 3)
+        plt.plot(vec3, 'g', label = 'HR', linewidth = 4)
+        plt.show()
+
+    return Sa, SH, SL
+
