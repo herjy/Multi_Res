@@ -103,7 +103,7 @@ def conv2D(xp, yp, xk, yk, xm, ym, p, xpp, ypp, h):
     Fm = 0
 
     for i in range(np.size(xp)):
-        Fm += sinc((xm-(xk+xp[i]))/h)*sinc((ym-(yk+yp[i]))/h)*p[xpp[i], ypp[i]]
+        Fm += np.sinc((xm-(xk+xp[i]))/h)*np.sinc((ym-(yk+yp[i]))/h)*p[xpp[i], ypp[i]]
     return Fm*h/np.pi
 
 def make_vec2D(a, b, xm, ym, p, xp, yp, xpp, ypp, h):
@@ -111,7 +111,7 @@ def make_vec2D(a, b, xm, ym, p, xp, yp, xpp, ypp, h):
 
     for k in range(np.size(a)):
 
-        vec[k] = conv(xp, yp, a[k], b[k], xm, ym, p, xpp, ypp, h)
+        vec[k] = conv2D(xp, yp, a[k], b[k], xm, ym, p, xpp, ypp, h)
 
     return vec.flatten()
 
@@ -119,10 +119,12 @@ def make_mat2D(a, b, A, B, p, xp, yp, xpp,ypp):
     mat = np.zeros((a.size, B.size))
     h = a[1]-a[0]
     assert h!=0
-    c = 0
+
     for m in range(np.size(B)):
-            mat[:, c] = make_vec(a, b, A[m], B[m], p, xp, yp, xpp, ypp, h)
-            c += 1
+            if (m % 1000+1 == True):
+                print('Matrix line: ', m, ' out of ', np.size(B))
+            mat[:, m] = make_vec2D(a, b, A[m], B[m], p, xp, yp, xpp, ypp, h)
+
     return mat
 
 def make_filter2D(a, b, A, B, p, xp, yp, xpp, ypp):
@@ -216,11 +218,8 @@ def get_psf(Field,x,y,n):
     assert len(x)==len(y)
     PSF = 0.
     xy0 = n/2
-    print(x,y)
     for i in range(len(x)):
-        print(x[i],y[i])
         Star = Field[x[i]-xy0:x[i]+xy0+1,y[i]-xy0:y[i]+xy0+1]
-
         xm,ym = np.where(Star == np.max(Star))
         xp = x[i]+(xm-xy0)
         yp = y[i]+(ym-xy0)
