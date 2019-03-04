@@ -1,12 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.signal as scp
-import SLIT
 import MuSCADeT as wine
-import sep
+import SLIT
 import scipy.ndimage.filters as med
-import pyfits as pf
-import scarlet.display
 import warnings
 warnings.simplefilter("ignore")
 
@@ -76,9 +72,15 @@ def make_mat(a, A, p, xp):
     for m, xm in enumerate(A):
         mat[:, m]=make_vec(a, xm, p, xp, H)
     return mat
-########################2D##########################
+########################2D##################################################################################################################################
+############################################################################################################################################################
+############################################################################################################################################################
+############################################################################################################################################################
+############################################################################################################################################################
+############################################################################################################################################################
+############################################################################################################################################################
 def Image(f, a, b):
-    n1 = np.sqrt(a.size)
+    n1 = np.int(np.sqrt(a.size))
     Img = np.zeros((n1, n1))
     xgrid, ygrid = np.where(np.zeros((n1, n1)) == 0)
 
@@ -90,7 +92,7 @@ def interp2D(a, b, A, B, Fm):
     # X: Input grid
     # Fm: Samples at positions X
     hx = np.abs(A[1]-A[0])
-    hy = np.abs(B[np.sqrt(B.size)+1] - B[0])
+    hy = np.abs(B[np.int(np.sqrt(B.size))+1] - B[0])
     print(hx,hy)
     return np.array([Fm[k] * np.sinc((a-A[k])/(hx)) * np.sinc((b-B[k])/(hy)) for k in range(len(A))]).sum(axis=0)
 
@@ -121,7 +123,7 @@ def make_mat2D(a, b, A, B, p, xp, yp, xpp,ypp):
     assert h!=0
 
     for m in range(np.size(B)):
-            if (m % 1000+1 == True):
+            if (m % 100+1 == True):
                 print('Matrix line: ', m, ' out of ', np.size(B))
             mat[:, m] = make_vec2D(a, b, A[m], B[m], p, xp, yp, xpp, ypp, h)
 
@@ -207,7 +209,7 @@ def MAD(x,n=3):
     ##OUTPUTS:
     ##  -S: the source light profile.
     ##  -FS: the lensed version of the estimated source light profile
-    xw = wine.wave_transform.wave_transform(x, np.int(np.log2(x.shape[0])))[0,:,:]
+    xw = wine.wave_transform(x, np.int(np.log2(x.shape[0])))[0,:,:]
     meda = med.median_filter(xw,size = (n,n))
     medfil = np.abs(xw-meda)#np.median(x))
     sh = np.shape(xw)
@@ -217,16 +219,19 @@ def MAD(x,n=3):
 def get_psf(Field,x,y,n):
     assert len(x)==len(y)
     PSF = 0.
-    xy0 = n/2
+    xy0 = np.int(n/2)
     for i in range(len(x)):
-        Star = Field[x[i]-xy0:x[i]+xy0+1,y[i]-xy0:y[i]+xy0+1]
+        Star = Field[np.int(x[i]-xy0):np.int(x[i]+xy0+1),np.int(y[i]-xy0):np.int(y[i]+xy0+1)]
+        plt.imshow(np.log10(Star)); plt.show()
+        print(x[i],y[i])
         xm,ym = np.where(Star == np.max(Star))
         xp = x[i]+(xm-xy0)
         yp = y[i]+(ym-xy0)
-        Star = Field[xp-xy0:xp+xy0+1,yp-xy0:yp+xy0+1]
+        Star = Field[np.int(xp-xy0):np.int(xp+xy0+1),np.int(yp-xy0):np.int(yp+xy0+1)]
 
         sigma = MAD(Star, n=3)
-        PSF+= wine.MCA.mr_filter(Star, 20, 5, sigma, lvl = np.int(np.log2(n)))[0]
+        PSFt = wine.MCA.mr_filter(Star, 20, 5, sigma, lvl = np.int(np.log2(n)))[0]
+        PSF+=PSFt/np.sum(PSFt)
 
     return PSF
 

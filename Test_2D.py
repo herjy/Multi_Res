@@ -1,10 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.signal as scp
 import sep
 import tools
 import pyfits as pf
-import scarlet.display
+#import scarlet.display
 import warnings
 warnings.simplefilter("ignore")
 
@@ -29,8 +28,8 @@ def p2(a, b):
 ##########################################################################################
 ##########################################################################################
 ##########################################################################################
-n1, n2 = 31., 31.
-N1, N2 = 15., 15.
+n1, n2 = 31, 31
+N1, N2 = 15, 15
 gridHR = np.zeros((n1, n2))
 gridLR = np.zeros((N1, N2))
 #x, y = np.where(gridHR == 0)
@@ -99,18 +98,18 @@ plt.show()
 xp0,yp0 = np.where(PSF_HR*0==0)
 
 print('Low resolution operator')
-#mat_LR = tools.make_mat2D(x, y, X, Y, PSF_LR, x, y, xp0, yp0)
+mat_LR = tools.make_mat2D(x, y, X, Y, PSF_LR, x, y, xp0, yp0)
 
-#hdus = pf.PrimaryHDU(mat_LR)
-#lists = pf.HDUList([hdus])
-#lists.writeto('mat_LR2d_PSFHR.fits', clobber=True)
+hdus = pf.PrimaryHDU(mat_LR)
+lists = pf.HDUList([hdus])
+lists.writeto('mat_LR2d_PSFHR.fits', clobber=True)
 
 print('High resolution operator')
-#mat_HR = tools.make_mat2D(x, y, x, y, PSF_HR, x, y, xp0, yp0)
+mat_HR = tools.make_mat2D(x, y, x, y, PSF_HR, x, y, xp0, yp0)
 
-#hdus = pf.PrimaryHDU(mat_HR)
-#lists = pf.HDUList([hdus])
-#lists.writeto('mat_HR2d_PSFHR.fits', clobber=True)
+hdus = pf.PrimaryHDU(mat_HR)
+lists = pf.HDUList([hdus])
+lists.writeto('mat_HR2d_PSFHR.fits', clobber=True)
 
 
 mat_LR = pf.open('mat_LR2d.fits')[0].data

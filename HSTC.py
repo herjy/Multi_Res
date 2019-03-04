@@ -7,20 +7,19 @@ import warnings
 warnings.simplefilter("ignore")
 
 
-hdu_HST= fits.open('/Users/remy/Desktop/LSST_Project/Multi_Resolution/HS_TC/acs_I_030mas_029_sci.fits')
-hdu_HSC= fits.open('/Users/remy/Desktop/LSST_Project/Multi_Resolution/HS_TC/HSC_Field.fits')
+hdu_HST= fits.open('/Users/remy/Desktop/LSST_Project/Multi_Resolution/HSTC/acs_I_030mas_029_sci.fits')
+hdu_HSC= fits.open('/Users/remy/Desktop/LSST_Project/Multi_Resolution/HSTC/cutout-HSC-I-9813-pdr1_udeep-190227-231046.fits')
 FHST = hdu_HST[0].data
-FHSC = hdu_HSC[0].data
+FHSC = hdu_HSC[1].data
 hdr_HST= hdu_HST[0].header
-hdr_HSC= hdu_HSC[0].header
-
+hdr_HSC= hdu_HSC[1].header
 
 WHST =WCS(hdu_HST[0].header)
 WHSC = WCS(hdu_HSC[0].header)
 
 
-xpsf = np.array([5778, 5470, 4490, 9759, 3822])
-ypsf = np.array([708, 907, 468, 365, 509])
+xpsf = np.array([ 4490, 9759])#np.array([5778, 5470, 4490, 9759, 3822])
+ypsf = np.array([ 468, 365])#np.array([708, 907, 468, 365, 509])
 Rapsf, Decpsf = WHST.wcs_pix2world(ypsf, xpsf,0)
 Ypsf, Xpsf = WHSC.wcs_world2pix(Rapsf, Decpsf,0)
 
