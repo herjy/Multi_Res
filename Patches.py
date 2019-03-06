@@ -70,31 +70,32 @@ plt.show()
 
 #HST coordinates
 
-x0 = 9133
+x0 = 9130
 y0 =10820
 xstart =x0-35
-xstop =x0+36
+xstop =x0+35
 ystart =y0-35
-ystop =y0+36
+ystop =y0+35
 
 XX = np.linspace(xstart,  xstop,71)#np.linspace(3810,3960,151)#np.linspace(10270,10340,71)#np.linspace(5170,5220,51)#XX = np.linspace(8485,8635,151)#
 YY = np.linspace(ystart, ystop,71)#np.linspace(7170,7320, 151)#np.linspace(4370,4440,71)#np.linspace(172,222,51)#YY = np.linspace(9500,9650, 151)
 x,y = np.meshgrid(XX,YY)
-x_HST = x.flatten()
-y_HST = y.flatten()
+x_HST = x.flatten().astype(int)
+y_HST = y.flatten().astype(int)
 Ra_HST, Dec_HST = WHST.wcs_pix2world(y_HST, x_HST,0)
 
 #HSC coordinates
 Y0, X0 = WHSC.wcs_world2pix(Ra_HST, Dec_HST,0)
-X = np.linspace(np.min(X0), np.max(X0), np.max(X0)-np.min(X0)+1)
-Y = np.linspace(np.min(Y0), np.max(Y0), np.max(Y0)-np.min(Y0)+1)
+X = np.linspace(np.min(X0)+1, np.max(X0)-1, np.max(X0)-np.min(X0)-1)
+Y = np.linspace(np.min(Y0)+1, np.max(Y0)-1, np.max(Y0)-np.min(Y0)-1)
 
 X,Y = np.meshgrid(X,Y)
 X_HSC = X.flatten()
 Y_HSC = Y.flatten()
 Ra_HSC, Dec_HSC = WHSC.all_pix2world(Y_HSC, X_HSC,0)  # type:
 Y_HST, X_HST = WHST.all_world2pix(Ra_HSC, Dec_HSC, 0)
-
+X_HST = X_HST.astype(int)
+Y_HST = Y_HST.astype(int)
 
 
 xp_wcs = np.linspace(np.min(x_HST)-26, np.max(x_HST)+26, 103)
@@ -103,16 +104,21 @@ xxp_wcs,yyp_wcs = np.meshgrid(xp_wcs,yp_wcs)
 xp_wcs = xxp_wcs.flatten()
 yp_wcs = yyp_wcs.flatten()
 
+n1 = np.int(x_HST.size**0.5)
+n2 = np.int(y_HST.size**0.5)
+
 plt.plot(x_HST,y_HST,'or')
 plt.plot(X_HST,Y_HST, 'ob')
 #plt.plot(xp_wcs,yp_wcs, 'og')
 plt.show()
 
-cut_HST = FHST[np.int(np.min(x)):np.int(np.max(x)), np.int(np.min(y)):np.int(np.max(y))]#[5170:5220,172:222]
-cut_HSC = FHSC[np.int(np.min(X))+2:np.int(np.max(X))+2, np.int(np.min(Y))+1:np.int(np.max(Y))+1]
+cut_HST = FHST[x_HST, y_HST].reshape(n1,n2)#[np.int(np.min(x)):np.int(np.max(x)), np.int(np.min(y)):np.int(np.max(y))]#[5170:5220,172:222]
+cut_HSC = FHSC[X_HSC.astype(int),Y_HSC.astype(int)]#[np.int(np.min(X)):np.int(np.max(X)), np.int(np.min(Y))+1:np.int(np.max(Y))]
+N1 = np.int(X_HSC.size**0.5)
+N2 = np.int(Y_HSC.size**0.5)
 
-n1,n2 = np.shape(cut_HST)
-N1,N2 = np.shape(cut_HSC)
+cut_HSC = cut_HSC.reshape(N1,N2)
+
 
 cut_HST /= np.sum(cut_HST)/(n1*n2)
 cut_HSC /= np.sum(cut_HSC)/(N1*N2)
@@ -139,7 +145,7 @@ lists.writeto('../Cut_HSC.fits', clobber=True)
 
 xp,yp = np.where(PSF_HST*0 == 0)
 
-if 0:
+if 1:
     print('Computing Low Resolution matrix')
     mat_HSC = tools.make_mat2D_fft(x_HST, y_HST, X_HST, Y_HST, PSF_HSC_data_HR)
 
@@ -167,7 +173,7 @@ def filter_HRT(x):
 
 print(cut_HST.shape, cut_HSC.shape, mat_HST.shape, mat_HSC.shape)
 
-niter = 400
+niter = 1000
 #Sall, SHR, SLR = tools.Combine2D_filter(cut_HST, cut_HSC.flatten(), filter_HR, filter_HRT, mat_HSC, niter, verbosity = 1)
 Sall, SHR, SLR = tools.Combine2D(cut_HST.flatten(), cut_HSC.flatten(), mat_HST, mat_HSC, niter, verbosity = 1)
 
