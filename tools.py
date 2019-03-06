@@ -237,9 +237,10 @@ def MAD(x,n=3):
     sigma = 1.48*np.median((medfil))
     return sigma
 
-def get_psf(Field,x,y,n):
+def get_psf(Field,x,y,n, HST = False):
     assert len(x)==len(y)
     PSF = 0.
+    PSF_n = 0
     xy0 = np.int(n/2)
     for i in range(len(x)):
         Star = Field[np.int(x[i]-xy0):np.int(x[i]+xy0+1),np.int(y[i]-xy0):np.int(y[i]+xy0+1)]
@@ -251,9 +252,19 @@ def get_psf(Field,x,y,n):
 
         sigma = MAD(Star, n=3)
         PSFt = wine.MCA.mr_filter(Star, 20, 5, sigma, lvl = np.int(np.log2(n)))[0]
+        PSF_n += Star/np.sum(Star)
         PSF+=PSFt/np.sum(PSFt)
 
-    return PSF
+    if HST == True:
+        Res = PSF_n-PSF
+        n1,n2 = Res.shape
+        Sup = np.copy(Res)*0
+        x0,y0 = n1/2, n2/2
+        x,y = np.where(Sup==0)
+        r = np.sqrt((x-x0)**2+(y-y0)**2).reshape(n1,n2)
+        Sup[r<4] = Res[r<4]
+        PSF+=Sup
+    return PSF/np.sum(PSF)
 
 def Combine2D(HR, LR, matHR, matLR, niter, verbosity = 0):
 
