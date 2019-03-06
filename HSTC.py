@@ -70,7 +70,7 @@ plt.show()
 
 #HST coordinates
 
-x0 = 9130
+x0 = 9132
 y0 =10820
 xstart =x0-35
 xstop =x0+35
@@ -86,8 +86,8 @@ Ra_HST, Dec_HST = WHST.wcs_pix2world(y_HST, x_HST,0)
 
 #HSC coordinates
 Y0, X0 = WHSC.wcs_world2pix(Ra_HST, Dec_HST,0)
-X = np.linspace(np.min(X0)+1, np.max(X0)-1, np.max(X0)-np.min(X0)-1)
-Y = np.linspace(np.min(Y0)+1, np.max(Y0)-1, np.max(Y0)-np.min(Y0)-1)
+X = np.linspace(np.min(X0), np.max(X0), np.max(X0)-np.min(X0)+1)
+Y = np.linspace(np.min(Y0), np.max(Y0), np.max(Y0)-np.min(Y0)+1)
 
 X,Y = np.meshgrid(X,Y)
 X_HSC = X.flatten()
@@ -112,7 +112,7 @@ plt.plot(X_HST,Y_HST, 'ob')
 #plt.plot(xp_wcs,yp_wcs, 'og')
 plt.show()
 
-cut_HST = FHST[x_HST, y_HST].reshape(n1,n2)#[np.int(np.min(x)):np.int(np.max(x)), np.int(np.min(y)):np.int(np.max(y))]#[5170:5220,172:222]
+cut_HST = FHST[x_HST-3, y_HST-6].reshape(n1,n2)#[np.int(np.min(x)):np.int(np.max(x)), np.int(np.min(y)):np.int(np.max(y))]#[5170:5220,172:222]
 cut_HSC = FHSC[X_HSC.astype(int),Y_HSC.astype(int)]#[np.int(np.min(X)):np.int(np.max(X)), np.int(np.min(Y))+1:np.int(np.max(Y))]
 N1 = np.int(X_HSC.size**0.5)
 N2 = np.int(Y_HSC.size**0.5)
@@ -145,7 +145,8 @@ lists.writeto('../Cut_HSC.fits', clobber=True)
 
 xp,yp = np.where(PSF_HST*0 == 0)
 
-if 1:
+compute = 0
+if compute:
     print('Computing Low Resolution matrix')
     mat_HSC = tools.make_mat2D_fft(x_HST, y_HST, X_HST, Y_HST, PSF_HSC_data_HR)
 
@@ -160,9 +161,9 @@ if 1:
     lists = fits.HDUList([hdus])
     lists.writeto('../Mat_HST71.fits', clobber=True)
 
-
-mat_HSC = fits.open('../Mat_HSC71.fits')[0].data
-mat_HST = fits.open('../Mat_HST71.fits')[0].data
+if np.abs(compute-1):
+    mat_HSC = fits.open('../Mat_HSC71.fits')[0].data
+    mat_HST = fits.open('../Mat_HST71.fits')[0].data
 
 def filter_HR(x):
     return scarlet.transformation.LinearFilter(mat_HST[np.int(n1*n1/2),:].reshape(n1,n2)).dot(x).reshape(n1*n2)
@@ -188,64 +189,70 @@ lists = fits.HDUList([hdus])
 lists.writeto('../HSTC_SLR_patch1.fits', clobber=True)
 
 if 1:
-    plt.subplot(431)
+    plt.figure(0)
     plt.imshow(Sall.reshape(n1,n2), interpolation = 'none', cmap = 'inferno')
     plt.colorbar()
-    plt.title('S all')
+    plt.title('Joint Reconstruction')
+    plt.savefig('Joint_Reconstruction.png')
     plt.axis('off')
-    plt.subplot(432)
+    plt.figure(1)
     plt.imshow(SLR.reshape(n1,n2), interpolation = 'none', cmap = 'inferno')
     plt.colorbar()
-    plt.title('S LR')
+    plt.title('HSC deconvolution')
+    plt.savefig('HSC-deconvolution.png')
     plt.axis('off')
-    plt.subplot(433)
+    plt.figure(2)
     plt.imshow(SHR.reshape(n1,n2), interpolation = 'none', cmap = 'inferno')
     plt.colorbar()
-    plt.title('S HR')
+    plt.title('HST deconvolution')
+    plt.savefig('HST_deconvolution.png')
     plt.axis('off')
-    plt.subplot(434)
+    plt.figure(3)
     plt.imshow(np.dot(Sall, mat_HST).reshape(n1,n2), interpolation = 'none', cmap = 'inferno')
     plt.colorbar()
-    plt.title('S all')
+    plt.title('HST joint model')
+    plt.savefig('HST_joint_model.png')
     plt.axis('off')
-    plt.subplot(435)
-    plt.imshow(np.dot(SHR, mat_HST).reshape(n1,n2), interpolation = 'none', cmap = 'inferno')
+    plt.figure(4)
+    plt.imshow(np.dot(Sall, mat_HSC).reshape(N1,N2), interpolation = 'none', cmap = 'inferno')
     plt.colorbar()
-    plt.title('S LR')
+    plt.title('HSC joint model')
+    plt.savefig('HSC_joint_model.png')
     plt.axis('off')
-    plt.subplot(436)
-    plt.imshow(np.dot(SLR, mat_HSC).reshape(N1,N2), interpolation = 'none', cmap = 'inferno')
-    plt.colorbar()
-    plt.title('S HR')
-    plt.axis('off')
-    plt.subplot(437)
-    plt.title('LR')
+    plt.figure(6)
+    plt.title('HST image')
+    plt.savefig('HST_image.png')
     plt.imshow(cut_HST, interpolation = 'none', cmap = 'inferno')
     plt.colorbar()
     plt.axis('off')
-    plt.subplot(438)
-    plt.title('HR')
+    plt.figure(7)
+    plt.title('HSC image')
+    plt.savefig('HSC_image.png')
     plt.imshow(cut_HSC, interpolation = 'none', cmap = 'inferno')
     plt.colorbar()
     plt.axis('off')
-    plt.subplot(439)
-    plt.title('Residual HR HR')
-    plt.imshow(cut_HST - np.dot(SHR, mat_HST).reshape(n1,n2), interpolation = 'none', cmap = 'inferno')
+    plt.figure(8)
+    plt.title('HST deconvolution model')
+    plt.savefig('HST_deconvolution_model.png')
+    plt.imshow(np.dot(SHR, mat_HST).reshape(n1,n2), interpolation = 'none', cmap = 'inferno')
     plt.colorbar()
     plt.axis('off')
-    plt.subplot(4,3,10)
-    plt.title('Residual LR')
-    plt.imshow(cut_HSC - np.dot(Sall, mat_HSC).reshape(N1,N2), interpolation = 'none', cmap = 'inferno')
+    plt.figure(9)
+    plt.title('HSC deconvolution model')
+    plt.savefig('HSC_deconvolution_model.png')
+    plt.imshow(np.dot(SLR, mat_HSC).reshape(N1,N2), interpolation = 'none', cmap = 'inferno')
     plt.colorbar()
     plt.axis('off')
-    plt.subplot(4,3,11)
-    plt.title('Residual HR')
+    plt.figure(10)
+    plt.title('Residual joint HST')
+    plt.savefig('Residual_joint_HST.png')
     plt.imshow(cut_HST - np.dot(Sall, mat_HST).reshape(n1,n2), interpolation = 'none', cmap = 'inferno')
     plt.colorbar()
     plt.axis('off')
-    plt.subplot(4,3,12)
-    plt.title('Residual LR LR')
-    plt.imshow(cut_HSC - np.dot(SLR, mat_HSC).reshape(N1,N2), interpolation = 'none', cmap = 'inferno')
+    plt.figure(11)
+    plt.title('Residual joint HSC')
+    plt.savefig('Residual_joint_HSC.png')
+    plt.imshow(cut_HSC - np.dot(Sall, mat_HSC).reshape(N1,N2), interpolation = 'none', cmap = 'inferno')
     plt.colorbar()
     plt.axis('off')
     plt.show()
