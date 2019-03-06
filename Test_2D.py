@@ -98,22 +98,21 @@ plt.show()
 xp0,yp0 = np.where(PSF_HR*0==0)
 
 print('Low resolution operator')
-#mat_LR = tools.make_mat2D(x, y, X, Y, PSF_LR, x, y, xp0, yp0)
-
-#hdus = pf.PrimaryHDU(mat_LR)
-#lists = pf.HDUList([hdus])
-#lists.writeto('mat_LR2d_PSFHR.fits', clobber=True)
+mat_LR = tools.make_mat2D_fft(x, y, X, Y, PSF_LR, x, y, xp0, yp0)
+hdus = pf.PrimaryHDU(mat_LR)
+lists = pf.HDUList([hdus])
+lists.writeto('mat_LR2d_FFT.fits', clobber=True)
 
 print('High resolution operator')
-#mat_HR = tools.make_mat2D(x, y, x, y, PSF_HR, x, y, xp0, yp0)
+mat_HR = tools.make_mat2D_fft(x, y, x, y, PSF_HR, x, y, xp0, yp0)
 
-#hdus = pf.PrimaryHDU(mat_HR)
-#lists = pf.HDUList([hdus])
-#lists.writeto('mat_HR2d_PSFHR.fits', clobber=True)
+hdus = pf.PrimaryHDU(mat_HR)
+lists = pf.HDUList([hdus])
+lists.writeto('mat_HR2d_FFT.fits', clobber=True)
 
 
-mat_LR = pf.open('mat_LR2d_PSFHR.fits')[0].data
-mat_HR = pf.open('mat_HR2d_PSFHR.fits')[0].data
+mat_LR = pf.open('mat_LR2d_FFT.fits')[0].data
+mat_HR = pf.open('mat_HR2d_FFT.fits')[0].data
 
 Y0 = tools.Image(F,x,y)
 
@@ -126,11 +125,11 @@ n = np.int(np.sqrt(x1.size))**2
 
 #x1 = x1[(n0-n)/2:(n-n0)/2]
 
-xx = scarlet.transformation.LinearFilter(x1.reshape(N1,N1))
-res = xx.dot(Y0)
+#xx = scarlet.transformation.LinearFilter(x1.reshape(n1,n1))
+#res = xx.dot(Y0)
 
-plt.plot(res); plt.show()
-plt.imshow((res), cmap = 'gist_stern', interpolation = 'None'); plt.show()
+#plt.plot(res); plt.show()
+#plt.imshow((res), cmap = 'gist_stern', interpolation = 'None'); plt.show()
 
 
 print('Now lets solve this!')
@@ -143,7 +142,7 @@ plt.imshow(Y0, interpolation = None, cmap = 'gist_stern')
 plt.subplot(132)
 plt.imshow(YHR.reshape(n1,n2), interpolation = None, cmap = 'gist_stern')
 plt.subplot(133)
-plt.imshow(YLR.reshape(N1,N2)-res, interpolation = None, cmap = 'gist_stern')
+plt.imshow(YLR.reshape(N1,N2), interpolation = None, cmap = 'gist_stern')
 plt.show()
 
 
@@ -168,7 +167,7 @@ def filter_HRT(x):
 def filter_LRT(x):
     return scarlet.transformation.LinearFilter(mat_LR[:,N1*N1/2].reshape(n1,n2).T).dot(x)
 
-Sall, SHR, SLR = tools.Combine2D_filter(YHR, YLR, filter_HR, filter_HRT, filter_LR, filter_LRT, niter, verbosity = 0)
+#Sall, SHR, SLR = tools.Combine2D_filter(YHR, YLR, filter_HR, filter_HRT, filter_LR, filter_LRT, niter, verbosity = 0)
 Sall, SHR, SLR = tools.Combine2D(YHR, YLR, mat_HR, mat_LR, niter, verbosity = 1)
 
 Sall = Sall.reshape(n1,n2)

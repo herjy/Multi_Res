@@ -1,7 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import MuSCADeT as wine
+import scipy.signal as scp
 import SLIT
+import time
 import scipy.ndimage.filters as med
 import warnings
 warnings.simplefilter("ignore")
@@ -93,7 +95,7 @@ def interp2D(a, b, A, B, Fm):
     # Fm: Samples at positions X
     hx = np.abs(A[1]-A[0])
     hy = np.abs(B[np.int(np.sqrt(B.size))+1] - B[0])
-    print(hx,hy)
+
     return np.array([Fm[k] * np.sinc((a-A[k])/(hx)) * np.sinc((b-B[k])/(hy)) for k in range(len(A))]).sum(axis=0)
 
 
@@ -117,14 +119,45 @@ def make_vec2D(a, b, xm, ym, p, xp, yp, xpp, ypp, h):
 
     return vec.flatten()
 
+def conv2D_fft(xk, yk, xm, ym, p, h):
+    # x: numpy array, high resolution sampling
+    # X: numpy array, low resolution sampling
+    # p: numpy array, psf sampled at high resolution
+    # xm: scalar, location of sampling in thelow resolution grid
+
+    ker = np.zeros((np.int(xk.size**0.5), np.int(yk.size**0.5)))
+    x,y = np.where(ker == 0)
+    ker[x,y] = np.sinc((xm-(xk))/h)*np.sinc((ym-(yk))/h)
+
+    return scp.fftconvolve(ker, p, mode = 'same')*h/np.pi
+
+def make_vec2D_fft(a, b, xm, ym, p, h):
+
+    vec = conv2D_fft(a, b, xm, ym, p, h)
+
+    return vec.flatten()
+
+def make_mat2D_fft(a, b, A, B, p):
+    mat = np.zeros((a.size, B.size))
+    h = a[1]-a[0]
+    assert h!=0
+    t0 = time.clock()
+    for m in range(np.size(B)):
+            #if (m % 1000+1 == True):
+            #    print('Matrix line: ', m, ' out of ', np.size(B))
+            #    print('time: ', time.clock()-t0)
+            mat[:, m] = make_vec2D_fft(a, b, A[m], B[m], p, h)
+
+    return mat
+
 def make_mat2D(a, b, A, B, p, xp, yp, xpp,ypp):
     mat = np.zeros((a.size, B.size))
     h = a[1]-a[0]
     assert h!=0
 
     for m in range(np.size(B)):
-            if (m % 100+1 == True):
-                print('Matrix line: ', m, ' out of ', np.size(B))
+            #if (m % 100+1 == True):
+            #    print('Matrix line: ', m, ' out of ', np.size(B))
             mat[:, m] = make_vec2D(a, b, A[m], B[m], p, xp, yp, xpp, ypp, h)
 
     return mat
@@ -157,7 +190,7 @@ def make_mat_alt2D(a, b, A, B, p, xp, yp, xpp, ypp):
     mat = np.zeros((a.size, A.size))
     n = np.size(vec)
     h =A[1]-A[0]
-    print(vec.shape, mat.shape, n)
+
     for k in range(A.size):
         mat[:,k] = vec[n+n/2-k*h : 2*n+n/2-k*h]/h
     return mat
@@ -209,7 +242,7 @@ def MAD(x,n=3):
     ##OUTPUTS:
     ##  -S: the source light profile.
     ##  -FS: the lensed version of the estimated source light profile
-    xw = wine.wave_transform.wave_transform(x, np.int(np.log2(x.shape[0])))[0,:,:]
+    xw = wine.wave_transform(x, np.int(np.log2(x.shape[0])))[0,:,:]
     meda = med.median_filter(xw,size = (n,n))
     medfil = np.abs(xw-meda)#np.median(x))
     sh = np.shape(xw)
@@ -238,48 +271,51 @@ def Combine2D(HR, LR, matHR, matLR, niter, verbosity = 0):
 
     n = HR.size
     N = LR.size
-    sigma_HR = SLIT.tools.MAD(HR.reshape(n**0.5, n**0.5))
-    sigma_LR = SLIT.tools.MAD(LR.reshape(N**0.5, N**0.5))
+    sigma_HR = MAD(HR.reshape(np.int(n**0.5), np.int(n**0.5)))
+    sigma_LR = MAD(LR.reshape(np.int(N**0.5), np.int(N**0.5)))
 
     var_norm = 1./sigma_HR**2 + 1./sigma_LR**2
     wvar_HR = (1./sigma_HR**2)*(1./var_norm)
     wvar_LR = (1./sigma_LR**2)*(1./var_norm)
 
-    mu1 = linorm2D(matHR, 10)/100.
+    mu1 = linorm2D(matHR, 10)/10.
     mu2 = linorm2D(matLR, 10)/10.
     mu = (mu1+mu2)/2.
 
     Sa = np.zeros((HR.size))
     SH = np.zeros((HR.size))
     SL = np.zeros((HR.size))
+
+
     vec = np.zeros(niter)
     vec2 = np.zeros(niter)
     vec3 = np.zeros(niter)
+    t0 = time.clock()
     for i in range(niter):
         if (i % 1000+1 == True) and (verbosity == 1):
-            print(i)
+            print('Current iteration: ', i, ', time: ', time.clock()-t0)
         Sa += mu * np.dot(LR - np.dot(Sa, matLR), matLR.T)*wvar_LR + mu * np.dot(HR-np.dot(Sa, matHR), matHR.T)*wvar_HR
     #plt.imshow(Sall.reshape(n1,n2)); plt.savefig('fig'+str(i))
 
         SL += mu2 * np.dot(LR - np.dot(SL, matLR), matLR.T)
-        if i < 10000:
+        if i < niter:
             SH += mu1 * np.dot(HR - np.dot(SH, matHR), matHR.T)
             SH[SH < 0] = 0
         Sa[Sa < 0] = 0
         SL[SL < 0] = 0
 
-        vec[i] = np.std((LR - np.dot(Sa, matLR))**2)/2. + np.sum((HR-np.dot(Sa, matHR))**2*wvar_LR)/2.
-        vec2[i] = np.std((LR - np.dot(SL, matLR))**2)
-        vec3[i] = np.std((HR - np.dot(SH, matHR))**2)
+        vec[i] = np.std((LR - np.dot(Sa, matLR))**2)/2./sigma_LR+ np.std((HR-np.dot(Sa, matHR))**2*wvar_LR)/2./sigma_HR
+        vec2[i] = np.std((LR - np.dot(SL, matLR))**2)/sigma_LR
+        vec3[i] = np.std((HR - np.dot(SH, matHR))**2)/sigma_HR
     #    plt.subplot(121)
     #    plt.imshow((LR - np.dot(Sall, matLR)).reshape(N1,N2))
     #    plt.subplot(122)
     #    plt.imshow((HR - np.dot(Sall, matHR)).reshape(n1,n2))
     #    plt.show()
     if verbosity == 1:
-        plt.plot(vec, 'b', label = 'All', linewidth = 2)
-        plt.plot(vec2, 'r', label = 'LR', linewidth = 3)
-        plt.plot(vec3, 'g', label = 'HR', linewidth = 4)
+        plt.plot(vec, 'r', label = 'All', linewidth = 2)
+        plt.plot(vec2, 'g', label = 'LR', linewidth = 3)
+        plt.plot(vec3, 'b', label = 'HR', linewidth = 4)
         plt.show()
 
     return Sa, SH, SL
@@ -317,20 +353,20 @@ def linorm2D_filter(filter, filterT, shape, nit):
 
     return 1./xn
 
-def Combine2D_filter(HR, LR, filter_HR, filter_HRT, filter_LR, filter_LRT, niter, verbosity = 0):
+def Combine2D_filter(HR, LR, filter_HR, filter_HRT, mat_LR, niter, verbosity = 0):
 
     n = HR.size
     N = LR.size
-    sigma_HR = SLIT.tools.MAD(HR.reshape(n**0.5, n**0.5))
-    sigma_LR = SLIT.tools.MAD(LR.reshape(N**0.5, N**0.5))
+    sigma_HR = MAD(HR.reshape(np.int(n**0.5), np.int(n**0.5)))
+    sigma_LR = MAD(LR.reshape(np.int(N**0.5), np.int(N**0.5)))
 
     var_norm = 1./sigma_HR**2 + 1./sigma_LR**2
     wvar_HR = (1./sigma_HR**2)*(1./var_norm)
     wvar_LR = (1./sigma_LR**2)*(1./var_norm)
 
-    mu1 = linorm2D_filter(filter_HR, filter_HRT, HR.size, 10)/100.
-    mu2 = linorm2D_filter(filter_LR, filter_LRT, HR.size, 10)/10.
-    mu = (mu1+mu2)/2.
+    mu1 = linorm2D_filter(filter_HR, filter_HRT, HR.size, 10)/1.
+    mu2 = linorm2D(mat_LR, 10)/1.
+    mu = (mu1+mu2)
 
 
 
@@ -343,10 +379,10 @@ def Combine2D_filter(HR, LR, filter_HR, filter_HRT, filter_LR, filter_LRT, niter
     for i in range(niter):
         if (i % 1000+1 == True) and (verbosity == 1):
             print(i)
-        Sa += mu * filter_LRT(LR - filter_LR(Sa))*wvar_LR + mu * filter_HRT(HR-np.filter_HR(Sa))*wvar_HR
+        Sa += mu * np.dot(LR - np.dot(Sa, matLR), matLR.T)*wvar_LR + mu * filter_HRT(HR-np.filter_HR(Sa))*wvar_HR
     #plt.imshow(Sall.reshape(n1,n2)); plt.savefig('fig'+str(i))
 
-        SL += mu2 * filter_LRT(LR - filter_LR(Sa))
+        SL += mu2 * np.dot(LR - np.dot(SLR, matLR), matLR.T)
         if i < 10000:
             SH += mu1 * filter_HRT(HR-np.filter_HR(Sa))
             SH[SH < 0] = 0

@@ -1,11 +1,13 @@
 import numpy as np
+import tools
 import matplotlib.pyplot as plt
 import scarlet
-import tools
 from astropy.wcs import WCS
 import astropy.io.fits as fits
+from multiprocess import Process
 import warnings
 warnings.simplefilter("ignore")
+
 
 
 hdu_HST= fits.open('/Users/remy/Desktop/LSST_Project/Multi_Resolution/HSTC/acs_I_030mas_029_sci.fits')
@@ -65,9 +67,18 @@ plt.imshow(np.log10(PSF_HSC_data_HR), interpolation = 'nearest', cmap = 'gist_st
 plt.colorbar()
 plt.show()
 
+
 #HST coordinates
-XX = np.linspace(7190,7290,101)#np.linspace(3810,3960,151)#np.linspace(10270,10340,71)#np.linspace(5170,5220,51)#XX = np.linspace(8485,8635,151)#
-YY = np.linspace(2300,2400,101)#np.linspace(7170,7320, 151)#np.linspace(4370,4440,71)#np.linspace(172,222,51)#YY = np.linspace(9500,9650, 151)
+
+x0 = 9133
+y0 =10820
+xstart =x0-35
+xstop =x0+36
+ystart =y0-35
+ystop =y0+36
+
+XX = np.linspace(xstart,  xstop,71)#np.linspace(3810,3960,151)#np.linspace(10270,10340,71)#np.linspace(5170,5220,51)#XX = np.linspace(8485,8635,151)#
+YY = np.linspace(ystart, ystop,71)#np.linspace(7170,7320, 151)#np.linspace(4370,4440,71)#np.linspace(172,222,51)#YY = np.linspace(9500,9650, 151)
 x,y = np.meshgrid(XX,YY)
 x_HST = x.flatten()
 y_HST = y.flatten()
@@ -92,12 +103,12 @@ xxp_wcs,yyp_wcs = np.meshgrid(xp_wcs,yp_wcs)
 xp_wcs = xxp_wcs.flatten()
 yp_wcs = yyp_wcs.flatten()
 
-#plt.plot(x_HST,y_HST,'or')
-#plt.plot(X_HST,Y_HST, 'ob')
+plt.plot(x_HST,y_HST,'or')
+plt.plot(X_HST,Y_HST, 'ob')
 #plt.plot(xp_wcs,yp_wcs, 'og')
-#plt.show()
+plt.show()
 
-cut_HST = FHST[np.int(np.min(x)):np.int(np.max(x))+1, np.int(np.min(y)):np.int(np.max(y))+1]#[5170:5220,172:222]
+cut_HST = FHST[np.int(np.min(x)):np.int(np.max(x)), np.int(np.min(y)):np.int(np.max(y))]#[5170:5220,172:222]
 cut_HSC = FHSC[np.int(np.min(X))+2:np.int(np.max(X))+2, np.int(np.min(Y))+1:np.int(np.max(Y))+1]
 
 n1,n2 = np.shape(cut_HST)
@@ -128,45 +139,47 @@ lists.writeto('../Cut_HSC.fits', clobber=True)
 
 xp,yp = np.where(PSF_HST*0 == 0)
 
-if 1:
+if 0:
     print('Computing Low Resolution matrix')
     mat_HSC = tools.make_mat2D_fft(x_HST, y_HST, X_HST, Y_HST, PSF_HSC_data_HR)
 
     hdus = fits.PrimaryHDU(mat_HSC)
     lists = fits.HDUList([hdus])
-    lists.writeto('../Mat_HSC101.fits', clobber=True)
+    lists.writeto('../Mat_HSC71.fits', clobber=True)
 
     print('Computing High Resolution matrix')
     mat_HST = tools.make_mat2D_fft(x_HST, y_HST, x_HST, y_HST, PSF_HST)
 
     hdus = fits.PrimaryHDU(mat_HST)
     lists = fits.HDUList([hdus])
-    lists.writeto('../Mat_HST101.fits', clobber=True)
+    lists.writeto('../Mat_HST71.fits', clobber=True)
 
 
-mat_HSC = fits.open('../Mat_HSC101.fits')[0].data
-mat_HST = fits.open('../Mat_HST101.fits')[0].data
+mat_HSC = fits.open('../Mat_HSC71.fits')[0].data
+mat_HST = fits.open('../Mat_HST71.fits')[0].data
 
 def filter_HR(x):
     return scarlet.transformation.LinearFilter(mat_HST[np.int(n1*n1/2),:].reshape(n1,n2)).dot(x).reshape(n1*n2)
 def filter_HRT(x):
     return scarlet.transformation.LinearFilter(mat_HST[:,np.int(n1*n1/2)].reshape(n1,n2).T).dot(x).reshape(n1*n2)
 
+
+
 print(cut_HST.shape, cut_HSC.shape, mat_HST.shape, mat_HSC.shape)
 
-niter = 3000
+niter = 400
 #Sall, SHR, SLR = tools.Combine2D_filter(cut_HST, cut_HSC.flatten(), filter_HR, filter_HRT, mat_HSC, niter, verbosity = 1)
 Sall, SHR, SLR = tools.Combine2D(cut_HST.flatten(), cut_HSC.flatten(), mat_HST, mat_HSC, niter, verbosity = 1)
 
 hdus = fits.PrimaryHDU(Sall.reshape(n1,n2))
 lists = fits.HDUList([hdus])
-lists.writeto('../HSTC_Sall.fits', clobber=True)
+lists.writeto('../HSTC_Sall_patch1.fits', clobber=True)
 hdus = fits.PrimaryHDU(SHR.reshape(n1,n2))
 lists = fits.HDUList([hdus])
-lists.writeto('../HSTC_SHR.fits', clobber=True)
+lists.writeto('../HSTC_SHR_patch1.fits', clobber=True)
 hdus = fits.PrimaryHDU(SLR.reshape(n1,n2))
 lists = fits.HDUList([hdus])
-lists.writeto('../HSTC_SLR.fits', clobber=True)
+lists.writeto('../HSTC_SLR_patch1.fits', clobber=True)
 
 if 1:
     plt.subplot(431)
