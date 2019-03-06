@@ -184,18 +184,6 @@ def make_filter2D(a, b, A, B, p, xp, yp, xpp, ypp):
 
     return make_vec(xx, yy, xm0, ym0, p, xx, yy, xpp, ypp, h)*(1-np.float(len(a))/len(xx))
 
-def make_mat_alt2D(a, b, A, B, p, xp, yp, xpp, ypp):
-    vec = make_filter(a, b, A, B, p, xp, yp, xpp, ypp)
-
-    mat = np.zeros((a.size, A.size))
-    n = np.size(vec)
-    h =A[1]-A[0]
-
-    for k in range(A.size):
-        mat[:,k] = vec[n+n/2-k*h : 2*n+n/2-k*h]/h
-    return mat
-
-
 
 def linorm2D(S, nit):
     """
@@ -242,7 +230,7 @@ def MAD(x,n=3):
     ##OUTPUTS:
     ##  -S: the source light profile.
     ##  -FS: the lensed version of the estimated source light profile
-    xw = wine.wave_transform(x, np.int(np.log2(x.shape[0])))[0,:,:]
+    xw = wine.wave_transform.wave_transform(x, np.int(np.log2(x.shape[0])))[0,:,:]
     meda = med.median_filter(xw,size = (n,n))
     medfil = np.abs(xw-meda)#np.median(x))
     sh = np.shape(xw)
@@ -353,9 +341,11 @@ def linorm2D_filter(filter, filterT, shape, nit):
 
     return 1./xn
 
-def Combine2D_filter(HR, LR, filter_HR, filter_HRT, mat_LR, niter, verbosity = 0):
+def Combine2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, verbosity = 0):
 
     n = HR.size
+    n1 = np.int(HR.size**0.5)
+    n2 = np.int(HR.size ** 0.5)
     N = LR.size
     sigma_HR = MAD(HR.reshape(np.int(n**0.5), np.int(n**0.5)))
     sigma_LR = MAD(LR.reshape(np.int(N**0.5), np.int(N**0.5)))
@@ -365,7 +355,7 @@ def Combine2D_filter(HR, LR, filter_HR, filter_HRT, mat_LR, niter, verbosity = 0
     wvar_LR = (1./sigma_LR**2)*(1./var_norm)
 
     mu1 = linorm2D_filter(filter_HR, filter_HRT, HR.size, 10)/1.
-    mu2 = linorm2D(mat_LR, 10)/1.
+    mu2 = linorm2D(matLR, 10)/1.
     mu = (mu1+mu2)
 
 
@@ -376,22 +366,23 @@ def Combine2D_filter(HR, LR, filter_HR, filter_HRT, mat_LR, niter, verbosity = 0
     vec = np.zeros(niter)
     vec2 = np.zeros(niter)
     vec3 = np.zeros(niter)
+    t0 =time.clock()
     for i in range(niter):
-        if (i % 1000+1 == True) and (verbosity == 1):
-            print(i)
-        Sa += mu * np.dot(LR - np.dot(Sa, matLR), matLR.T)*wvar_LR + mu * filter_HRT(HR-np.filter_HR(Sa))*wvar_HR
+        if (i % 100+1 == True) and (verbosity == 1):
+            print('Current iteration: ', i, ', time: ', time.clock()-t0)
+        Sa += mu * np.dot(LR - np.dot(Sa, matLR), matLR.T)*wvar_LR + mu * filter_HRT(HR-filter_HR(Sa.reshape(n1,n2))).reshape(n)*wvar_HR
     #plt.imshow(Sall.reshape(n1,n2)); plt.savefig('fig'+str(i))
 
-        SL += mu2 * np.dot(LR - np.dot(SLR, matLR), matLR.T)
+        SL += mu2 * np.dot(LR - np.dot(SL, matLR), matLR.T)
         if i < 10000:
-            SH += mu1 * filter_HRT(HR-np.filter_HR(Sa))
+            SH += mu1 * filter_HRT(HR-filter_HR(SH.reshape(n1,n2))).reshape(n)
             SH[SH < 0] = 0
         Sa[Sa < 0] = 0
         SL[SL < 0] = 0
 
-        vec[i] = np.std(LR - filter_LR(Sa))**2/2. + np.std(HR-filter_HR(Sa))**2*wvar_LR/2.
-        vec2[i] = np.std(LR - filter_LR(SL))**2
-        vec3[i] = np.std(HR - filter_HR(SH))**2
+        vec[i] = np.std(LR - np.dot(Sa, matLR))**2/2./sigma_LR**2 + np.std(HR-filter_HR(Sa.reshape(n1,n2)))**2*wvar_LR/2./sigma_HR**2
+        vec2[i] = np.std(LR - np.dot(SL, matLR))**2/sigma_LR**2
+        vec3[i] = np.std(HR - filter_HR(SH.reshape(n1,n2)))**2/sigma_HR**2
     #    plt.subplot(121)
     #    plt.imshow((LR - np.dot(Sall, matLR)).reshape(N1,N2))
     #    plt.subplot(122)
