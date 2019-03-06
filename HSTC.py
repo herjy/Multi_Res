@@ -69,16 +69,17 @@ plt.show()
 
 
 #HST coordinates
+###########works
+x0 = 5388-6 #9132
+y0 = 14579#10825
+excess =75
+xstart =x0-excess
+xstop =x0+excess
+ystart =y0-excess
+ystop =y0+excess
 
-x0 = 9132
-y0 =10825
-xstart =x0-55
-xstop =x0+55
-ystart =y0-55
-ystop =y0+55
-
-XX = np.linspace(xstart,  xstop,111)#np.linspace(3810,3960,151)#np.linspace(10270,10340,71)#np.linspace(5170,5220,51)#XX = np.linspace(8485,8635,151)#
-YY = np.linspace(ystart, ystop,111)#np.linspace(7170,7320, 151)#np.linspace(4370,4440,71)#np.linspace(172,222,51)#YY = np.linspace(9500,9650, 151)
+XX = np.linspace(xstart,  xstop,2*excess+1)#np.linspace(3810,3960,151)#np.linspace(10270,10340,71)#np.linspace(5170,5220,51)#XX = np.linspace(8485,8635,151)#
+YY = np.linspace(ystart, ystop,2*excess+1)#np.linspace(7170,7320, 151)#np.linspace(4370,4440,71)#np.linspace(172,222,51)#YY = np.linspace(9500,9650, 151)
 x,y = np.meshgrid(XX,YY)
 x_HST = x.flatten().astype(int)
 y_HST = y.flatten().astype(int)
@@ -145,31 +146,32 @@ lists.writeto('../HS_TC/Cut_HSC.fits', clobber=True)
 
 xp,yp = np.where(PSF_HST*0 == 0)
 
-if 0:
+compute = 0
+if compute:
     print('Computing Low Resolution matrix')
     mat_HSC = tools.make_mat2D_fft(x_HST, y_HST, X_HST, Y_HST, PSF_HSC_data_HR)
 
     hdus = fits.PrimaryHDU(mat_HSC)
     lists = fits.HDUList([hdus])
-    lists.writeto('../HS_TC/Mat_HSC71.fits', clobber=True)
+    lists.writeto('../HS_TC/Mat_HSC_'+str(n1)+'.fits', clobber=True)
 
     print('Computing High Resolution matrix')
     mat_HST = tools.make_mat2D_fft(x_HST, y_HST, x_HST, y_HST, PSF_HST)
 
     hdus = fits.PrimaryHDU(mat_HST)
     lists = fits.HDUList([hdus])
-    lists.writeto('../HS_TC/Mat_HST71.fits', clobber=True)
+    lists.writeto('../HS_TC/Mat_HST_'+str(n1)+'.fits', clobber=True)
 
-
-mat_HSC = fits.open('../HS_TC/Mat_HSC71.fits')[0].data
-mat_HST = fits.open('../HS_TC/Mat_HST71.fits')[0].data
+if np.abs(compute-1):
+    mat_HSC = fits.open('../HS_TC/Mat_HSC_'+str(n1)+'.fits')[0].data
+    mat_HST = fits.open('../HS_TC/Mat_HST_'+str(n1)+'.fits')[0].data
 
 def filter_HR(x):
     return scarlet.transformation.LinearFilter(mat_HST[:,np.int(n1*n1/2)].reshape(n1,n2)).dot(x)
 def filter_HRT(x):
     return scarlet.transformation.LinearFilter(mat_HST[np.int(n1*n1/2),:].reshape(n1,n2).T).dot(x)
 
-niter = 350
+niter = 50
 Sall, SHR, SLR = tools.Combine2D_filter(cut_HST, cut_HSC.flatten(), filter_HR, filter_HRT, mat_HSC, niter, verbosity = 1)
 #Sall, SHR, SLR = tools.Combine2D(cut_HST.flatten(), cut_HSC.flatten(), mat_HST, mat_HSC, niter, verbosity = 1)
 
