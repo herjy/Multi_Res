@@ -69,9 +69,9 @@ plt.show()
 
 
 #HST coordinates
-######faint#####works
-x0 = 5992#5388 -8  #9132 -6
-y0 = 1926#14579 -4 #10825 -4
+############big##faint#####works
+x0 = 1436 #5992#5388 -8  #9132 -6
+y0 = 1109 #1926#14579 -4 #10825 -4
 excess =95
 xstart =x0-excess
 xstop =x0+excess
