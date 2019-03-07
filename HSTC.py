@@ -70,7 +70,7 @@ plt.show()
 
 #HST coordinates
 ###########works
-x0 = 5388-6 #9132
+x0 = 5388 #9132
 y0 = 14579#10825
 excess =75
 xstart =x0-excess
@@ -108,13 +108,13 @@ yp_wcs = yyp_wcs.flatten()
 n1 = np.int(x_HST.size**0.5)
 n2 = np.int(y_HST.size**0.5)
 
-plt.plot(x_HST,y_HST,'or')
-plt.plot(X_HST,Y_HST, 'ob')
+#plt.plot(x_HST,y_HST,'or')
+#plt.plot(X_HST,Y_HST, 'ob')
 #plt.plot(xp_wcs,yp_wcs, 'og')
-plt.show()
+#plt.show()
 
-cut_HST = FHST[x_HST-4, y_HST-6].reshape(n1,n2)#[np.int(np.min(x)):np.int(np.max(x)), np.int(np.min(y)):np.int(np.max(y))]#[5170:5220,172:222]
-cut_HSC = FHSC[X_HSC.astype(int),Y_HSC.astype(int)]#[np.int(np.min(X)):np.int(np.max(X)), np.int(np.min(Y))+1:np.int(np.max(Y))]
+cut_HST = FHST[x_HST-8, y_HST-4].reshape(n1,n2)#-4-6#[np.int(np.min(x)):np.int(np.max(x)), np.int(np.min(y)):np.int(np.max(y))]#[5170:5220,172:222]
+cut_HSC = FHSC[X_HSC.astype(int)-1,Y_HSC.astype(int)]#[np.int(np.min(X)):np.int(np.max(X)), np.int(np.min(Y))+1:np.int(np.max(Y))]
 N1 = np.int(X_HSC.size**0.5)
 N2 = np.int(Y_HSC.size**0.5)
 
@@ -146,7 +146,7 @@ lists.writeto('../HS_TC/Cut_HSC.fits', clobber=True)
 
 xp,yp = np.where(PSF_HST*0 == 0)
 
-compute = 0
+compute = 1
 if compute:
     print('Computing Low Resolution matrix')
     mat_HSC = tools.make_mat2D_fft(x_HST, y_HST, X_HST, Y_HST, PSF_HSC_data_HR)
@@ -156,22 +156,24 @@ if compute:
     lists.writeto('../HS_TC/Mat_HSC_'+str(n1)+'.fits', clobber=True)
 
     print('Computing High Resolution matrix')
-    mat_HST = tools.make_mat2D_fft(x_HST, y_HST, x_HST, y_HST, PSF_HST)
+    #mat_HST = tools.make_mat2D_fft(x_HST, y_HST, x_HST, y_HST, PSF_HST)
+    h = x_HST[1]-x_HST[0]
+    HR_filter = tools.make_vec2D_fft(x_HST, y_HST,x_HST[n1*n2/2], y_HST[n1*n2/2], PSF_HST, h).reshape(n1,n2)
 
-    hdus = fits.PrimaryHDU(mat_HST)
-    lists = fits.HDUList([hdus])
-    lists.writeto('../HS_TC/Mat_HST_'+str(n1)+'.fits', clobber=True)
+ #   hdus = fits.PrimaryHDU(mat_HST)
+ #   lists = fits.HDUList([hdus])
+ #   lists.writeto('../HS_TC/Mat_HST_'+str(n1)+'.fits', clobber=True)
 
 if np.abs(compute-1):
     mat_HSC = fits.open('../HS_TC/Mat_HSC_'+str(n1)+'.fits')[0].data
     mat_HST = fits.open('../HS_TC/Mat_HST_'+str(n1)+'.fits')[0].data
 
 def filter_HR(x):
-    return scarlet.transformation.LinearFilter(mat_HST[:,np.int(n1*n1/2)].reshape(n1,n2)).dot(x)
+    return scarlet.transformation.LinearFilter(HR_filter).dot(x)#mat_HST[:,np.int(n1*n1/2)].reshape(n1,n2)
 def filter_HRT(x):
-    return scarlet.transformation.LinearFilter(mat_HST[np.int(n1*n1/2),:].reshape(n1,n2).T).dot(x)
+    return scarlet.transformation.LinearFilter(HR_filter.T).dot(x)#mat_HST[:,np.int(n1*n1/2)].reshape(n1,n2)
 
-niter = 50
+niter = 250
 Sall, SHR, SLR = tools.Combine2D_filter(cut_HST, cut_HSC.flatten(), filter_HR, filter_HRT, mat_HSC, niter, verbosity = 1)
 #Sall, SHR, SLR = tools.Combine2D(cut_HST.flatten(), cut_HSC.flatten(), mat_HST, mat_HSC, niter, verbosity = 1)
 
@@ -206,7 +208,7 @@ if 1:
     plt.axis('off')
     plt.savefig('HST_deconvolution.png')
     plt.figure(3)
-    plt.imshow(np.dot(Sall, mat_HST).reshape(n1,n2), interpolation = 'none', cmap = 'CMRmap')
+    plt.imshow(filter_HR(Sall.reshape(n1,n2)), interpolation = 'none', cmap = 'CMRmap')
     plt.colorbar()
     plt.title('HST joint model', fontsize = font)
     plt.axis('off')
@@ -231,7 +233,7 @@ if 1:
     plt.axis('off')
     plt.figure(8)
     plt.title('HST deconvolution model', fontsize = font)
-    plt.imshow(np.dot(SHR, mat_HST).reshape(n1,n2), interpolation = 'none', cmap = 'CMRmap')
+    plt.imshow(filter_HR(SHR.reshape(n1,n2)), interpolation = 'none', cmap = 'CMRmap')
     plt.savefig('HST_deconvolution_model.png')
     plt.colorbar()
     plt.axis('off')
@@ -243,7 +245,7 @@ if 1:
     plt.savefig('HSC_deconvolution_model.png')
     plt.figure(10)
     plt.title('Residual joint HST', fontsize = font)
-    plt.imshow(cut_HST - np.dot(Sall, mat_HST).reshape(n1,n2), interpolation = 'none', cmap = 'CMRmap')
+    plt.imshow(cut_HST - filter_HR(Sall.reshape(n1,n2)), interpolation = 'none', cmap = 'CMRmap')
     plt.colorbar()
     plt.axis('off')
     plt.savefig('Residual_joint_HST.png')
