@@ -69,9 +69,9 @@ plt.show()
 
 
 #HST coordinates
-############big##faint#####works
-x0 = 1436 #5992#5388 -8  #9132 -6
-y0 = 1109 #1926#14579 -4 #10825 -4
+############big##big##faint#####works
+x0 = 2675 #1436 #5992#5388 -8  #9132 -6
+y0 = 4888 #1109 #1926#14579 -4 #10825 -4
 excess =95
 xstart =x0-excess
 xstop =x0+excess
@@ -113,7 +113,7 @@ n2 = np.int(y_HST.size**0.5)
 #plt.plot(xp_wcs,yp_wcs, 'og')
 #plt.show()
 
-cut_HST = FHST[x_HST-8, y_HST-4].reshape(n1,n2)#-4-6#[np.int(np.min(x)):np.int(np.max(x)), np.int(np.min(y)):np.int(np.max(y))]#[5170:5220,172:222]
+cut_HST = FHST[x_HST-4, y_HST-4].reshape(n1,n2)#-4-6#[np.int(np.min(x)):np.int(np.max(x)), np.int(np.min(y)):np.int(np.max(y))]#[5170:5220,172:222]
 cut_HSC = FHSC[X_HSC.astype(int),Y_HSC.astype(int)]#[np.int(np.min(X)):np.int(np.max(X)), np.int(np.min(Y))+1:np.int(np.max(Y))]
 N1 = np.int(X_HSC.size**0.5)
 N2 = np.int(Y_HSC.size**0.5)
