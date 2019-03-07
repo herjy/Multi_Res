@@ -72,7 +72,7 @@ plt.show()
 ######faint#####works
 x0 = 5992#5388 -8  #9132 -6
 y0 = 1926#14579 -4 #10825 -4
-excess =75
+excess =95
 xstart =x0-excess
 xstop =x0+excess
 ystart =y0-excess
@@ -114,7 +114,7 @@ n2 = np.int(y_HST.size**0.5)
 #plt.show()
 
 cut_HST = FHST[x_HST-8, y_HST-4].reshape(n1,n2)#-4-6#[np.int(np.min(x)):np.int(np.max(x)), np.int(np.min(y)):np.int(np.max(y))]#[5170:5220,172:222]
-cut_HSC = FHSC[X_HSC.astype(int)-1,Y_HSC.astype(int)]#[np.int(np.min(X)):np.int(np.max(X)), np.int(np.min(Y))+1:np.int(np.max(Y))]
+cut_HSC = FHSC[X_HSC.astype(int),Y_HSC.astype(int)]#[np.int(np.min(X)):np.int(np.max(X)), np.int(np.min(Y))+1:np.int(np.max(Y))]
 N1 = np.int(X_HSC.size**0.5)
 N2 = np.int(Y_HSC.size**0.5)
 
@@ -146,7 +146,7 @@ lists.writeto('../HS_TC/Cut_HSC.fits', clobber=True)
 
 xp,yp = np.where(PSF_HST*0 == 0)
 
-compute = 0
+compute = 1
 if compute:
     print('Computing Low Resolution matrix')
     mat_HSC = tools.make_mat2D_fft(x_HST, y_HST, X_HST, Y_HST, PSF_HSC_data_HR)
@@ -168,7 +168,7 @@ HR_filter = tools.make_vec2D_fft(x_HST, y_HST,x_HST[n1*n2/2], y_HST[n1*n2/2], PS
 
 if np.abs(compute-1):
     mat_HSC = fits.open('../HS_TC/Mat_HSC_'+str(n1)+'.fits')[0].data
-    mat_HST = fits.open('../HS_TC/Mat_HST_'+str(n1)+'.fits')[0].data
+#    mat_HST = fits.open('../HS_TC/Mat_HST_'+str(n1)+'.fits')[0].data
 
 def filter_HR(x):
     return scarlet.transformation.LinearFilter(HR_filter).dot(x)#mat_HST[:,np.int(n1*n1/2)].reshape(n1,n2)
@@ -196,47 +196,47 @@ if 1:
     plt.colorbar()
     plt.title('Joint Reconstruction', fontsize = font)
     plt.axis('off')
-    plt.savefig('Joint_Reconstruction.png')
+    plt.savefig('Joint_Reconstruction_'+str(x0)+'_'+str(y0)+'.png')
     plt.figure(1)
     plt.imshow(SLR.reshape(n1,n2), interpolation = 'none', cmap = 'gist_stern')
     plt.colorbar()
     plt.title('HSC deconvolution', fontsize = font)
     plt.axis('off')
-    plt.savefig('HSC-deconvolution.png')
+    plt.savefig('HSC-deconvolution_'+str(x0)+'_'+str(y0)+'.png')
     plt.figure(2)
     plt.imshow(SHR.reshape(n1,n2), interpolation = 'none', cmap = 'gist_stern')
     plt.colorbar()
     plt.title('HST deconvolution', fontsize = font)
     plt.axis('off')
-    plt.savefig('HST_deconvolution.png')
+    plt.savefig('HST_deconvolution_'+str(x0)+'_'+str(y0)+'.png')
     plt.figure(3)
     plt.imshow(filter_HR(Sall.reshape(n1,n2)), interpolation = 'none', cmap = 'gist_stern')
     plt.colorbar()
     plt.title('HST joint model', fontsize = font)
     plt.axis('off')
-    plt.savefig('HST_joint_model.png')
+    plt.savefig('HST_joint_model_'+str(x0)+'_'+str(y0)+'.png')
     plt.figure(4)
     plt.imshow(np.dot(Sall, mat_HSC).reshape(N1,N2), interpolation = 'none', cmap = 'gist_stern')
     plt.colorbar()
     plt.title('HSC joint model', fontsize = font)
     plt.axis('off')
-    plt.savefig('HSC_joint_model.png')
+    plt.savefig('HSC_joint_model_'+str(x0)+'_'+str(y0)+'.png')
     plt.figure(6)
     plt.title('HST image', fontsize = font)
     plt.imshow(cut_HST, interpolation = 'none', cmap = 'gist_stern')
-    plt.savefig('HST_image.png')
+    plt.savefig('HST_image_'+str(x0)+'_'+str(y0)+'.png')
     plt.colorbar()
     plt.axis('off')
     plt.figure(7)
     plt.title('HSC image', fontsize = font)
     plt.imshow(cut_HSC, interpolation = 'none', cmap = 'gist_stern')
-    plt.savefig('HSC_image.png')
+    plt.savefig('HSC_image_'+str(x0)+'_'+str(y0)+'.png')
     plt.colorbar()
     plt.axis('off')
     plt.figure(8)
     plt.title('HST deconvolution model', fontsize = font)
     plt.imshow(filter_HR(SHR.reshape(n1,n2)), interpolation = 'none', cmap = 'gist_stern')
-    plt.savefig('HST_deconvolution_model.png')
+    plt.savefig('HST_deconvolution_model_'+str(x0)+'_'+str(y0)+'.png')
     plt.colorbar()
     plt.axis('off')
     plt.figure(9)
@@ -244,17 +244,17 @@ if 1:
     plt.imshow(np.dot(SLR, mat_HSC).reshape(N1,N2), interpolation = 'none', cmap = 'gist_stern')
     plt.colorbar()
     plt.axis('off')
-    plt.savefig('HSC_deconvolution_model.png')
+    plt.savefig('HSC_deconvolution_model_'+str(x0)+'_'+str(y0)+'.png')
     plt.figure(10)
     plt.title('Residual joint HST', fontsize = font)
     plt.imshow(cut_HST - filter_HR(Sall.reshape(n1,n2)), interpolation = 'none', cmap = 'gist_stern')
     plt.colorbar()
     plt.axis('off')
-    plt.savefig('Residual_joint_HST.png')
+    plt.savefig('Residual_joint_HST_'+str(x0)+'_'+str(y0)+'.png')
     plt.figure(11)
     plt.title('Residual joint HSC', fontsize = font)
     plt.imshow(cut_HSC - np.dot(Sall, mat_HSC).reshape(N1,N2), interpolation = 'none', cmap = 'gist_stern')
     plt.colorbar()
     plt.axis('off')
-    plt.savefig('Residual_joint_HSC.png')
+    plt.savefig('Residual_joint_HSC_'+str(x0)+'_'+str(y0)+'.png')
     plt.show()
