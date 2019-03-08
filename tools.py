@@ -264,6 +264,7 @@ def get_psf(Field,x,y,n, HST = False):
         r = np.sqrt((x-x0)**2+(y-y0)**2).reshape(n1,n2)
         Sup[r<4] = Res[r<4]
         PSF+=Sup
+    PSF[PSF<0] = 0
     return PSF/np.sum(PSF)
 
 def Combine2D(HR, LR, matHR, matLR, niter, verbosity = 0):

@@ -20,6 +20,9 @@ hdr_HSC= hdu_HSC[0].header
 WHST =WCS(hdu_HST[0].header)
 WHSC = WCS(hdu_HSC[0].header)
 
+#PSF
+np1, np2 = 102
+Np1,Np2 = 18
 
 xpsf = np.array([ 4490, 9759])#np.array([5778, 5470, 4490, 9759, 3822])
 ypsf = np.array([ 468, 365])#np.array([708, 907, 468, 365, 509])
@@ -27,33 +30,28 @@ Rapsf, Decpsf = WHST.all_pix2world(ypsf, xpsf,0)
 Ypsf, Xpsf = WHSC.all_world2pix(Rapsf, Decpsf,0)
 
 
-PSF_HST = tools.get_psf(FHST, xpsf, ypsf, 103, HST = True)
-PSF_HST[PSF_HST<0] = 0
-PSF_HST/=np.sum(PSF_HST)
+PSF_HST = tools.get_psf(FHST, xpsf, ypsf, np1+1, HST = True)
+PSF_HSC_data = tools.get_psf(FHSC, Xpsf, Ypsf, Np1+1)
+xx,yy = np.where(PSF_HSC_data*0 == 0)
+r = np.sqrt((xx-10)**2+(yy-10)**2).reshape(Np1+1,Np1+1)
+PSF_HSC_data[r>15]=0
+
+xd = np.linspace(0,np1,np1+1)
+yd = np.linspace(0,np2,np2+1)
+xxd,yyd = np.meshgrid(xd,yd)
+x0 = np.linspace(0,np1,Np1+1)
+y0 = np.linspace(0,np2,Np2+1)
+xx0,yy0 = np.meshgrid(x0,y0)
+
+
+PSF_HSC_data_HR = tools.interp2D(xxd.flatten(),yyd.flatten(), xx0.flatten(), yy0.flatten(), PSF_HSC_data.flatten()).reshape(np1+1,np2+1)
+PSF_HSC_data_HR[PSF_HSC_data_HR<0] = 0
+PSF_HSC_data_HR/=np.sum(PSF_HSC_data_HR)
+
 
 hdus = fits.PrimaryHDU(PSF_HST)
 lists = fits.HDUList([hdus])
 lists.writeto('../HS_TC/PSF_HST.fits', clobber=True)
-
-PSF_HSC = tools.get_psf(FHSC, Xpsf, Ypsf, 19)
-PSF_HSC[PSF_HSC<0] = 0
-PSF_HSC_data = PSF_HSC/np.sum(PSF_HSC)
-xx,yy = np.where(PSF_HSC*0 == 0)
-r = np.sqrt((xx-10)**2+(yy-10)**2).reshape(19,19)
-
-xd = np.linspace(0,100,103)
-yd = np.linspace(0,100,103)
-xxd,yyd = np.meshgrid(xd,yd)
-x0 = np.linspace(0,100,19)
-y0 = np.linspace(0,100,19)
-xx0,yy0 = np.meshgrid(x0,y0)
-
-PSF_HSC_data[r>15]=0
-
-PSF_HSC_data_HR = tools.interp2D(xxd.flatten(),yyd.flatten(), xx0.flatten(), yy0.flatten(), PSF_HSC_data.flatten()).reshape(103,103)
-
-PSF_HSC_data_HR[PSF_HSC_data_HR<0] = 0
-PSF_HSC_data_HR/=np.sum(PSF_HSC_data_HR)
 
 hdus = fits.PrimaryHDU(PSF_HSC_data_HR)
 lists = fits.HDUList([hdus])
@@ -69,10 +67,10 @@ plt.show()
 
 
 #HST coordinates
-############big##big##faint#####works
-x0 = 2675 #1436 #5992#5388 -8  #9132 -6
-y0 = 4888 #1109 #1926#14579 -4 #10825 -4
-excess =95
+#########large###big##big##faint#####works
+x0 = 5388#2675 #1436 #5992#5388 -8  #9132 -6
+y0 = 14579#4888 #1109 #1926#14579 -4 #10825 -4
+excess =115
 xstart =x0-excess
 xstop =x0+excess
 ystart =y0-excess
