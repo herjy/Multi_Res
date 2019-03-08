@@ -36,7 +36,7 @@ def make_vec1D(a, xm, p, xp, h):
 
     vec=np.zeros(a.size)
     for k, xk in enumerate(a):
-        vec[k]=conv(a, xk, xm, p, xp, h)
+        vec[k]=conv1D(a, xk, xm, p, xp, h)
 
     return vec
 
@@ -53,12 +53,12 @@ def make_filter1D(a, A, p, xp):
     xx=np.linspace(m-n, M+n, 3*n+1)
 
 
-    return make_vec(xx, xm0, p, xx, H)*(1-np.float(len(a))/len(xx))
+    return make_vec1D(xx, xm0, p, xx, H)*(1-np.float(len(a))/len(xx))
 
 
 
 def make_mat_alt1D(a,A,p,xp):
-    vec = make_filter(a, A, p, xp)
+    vec = make_filter1D(a, A, p, xp)
     mat = np.zeros((a.size, A.size))
     n = len(a)
     h =A[1]-A[0]
@@ -72,7 +72,7 @@ def make_mat(a, A, p, xp):
     mat=np.zeros((a.size, A.size))
     H=np.abs(a[1]-a[0])
     for m, xm in enumerate(A):
-        mat[:, m]=make_vec(a, xm, p, xp, H)
+        mat[:, m]=make_vec1D(a, xm, p, xp, H)
     return mat
 ########################2D##################################################################################################################################
 ############################################################################################################################################################
@@ -182,7 +182,7 @@ def make_filter2D(a, b, A, B, p, xp, yp, xpp, ypp):
     # On essaie, mais je crois que c'est xpp ypp en vrai
     xxp,yyp = np.where(np.zeros(((3*n+1)**0.5,(3*n+1)**0.5))==0)
 
-    return make_vec(xx, yy, xm0, ym0, p, xx, yy, xpp, ypp, h)*(1-np.float(len(a))/len(xx))
+    return make_vec2D(xx, yy, xm0, ym0, p, xx, yy, xpp, ypp, h)*(1-np.float(len(a))/len(xx))
 
 
 def linorm2D(S, nit):
@@ -366,9 +366,9 @@ def Combine2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, verbosity = 0)
     wvar_HR = (1./sigma_HR**2)*(1./var_norm)
     wvar_LR = (1./sigma_LR**2)*(1./var_norm)
 
-    mu1 = linorm2D_filter(filter_HR, filter_HRT, HR.size, 10)/1.
+    mu1 = linorm2D_filter(filter_HR, filter_HRT, HR.size, 10)/10.
     mu2 = linorm2D(matLR, 10)/1.
-    mu = (mu1+mu2)
+    mu = (mu1+mu2)/2
 
 
 
@@ -382,7 +382,7 @@ def Combine2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, verbosity = 0)
     for i in range(niter):
         if (i % 100+1 == True) and (verbosity == 1):
             print('Current iteration: ', i, ', time: ', time.clock()-t0)
-        Sa += mu * np.dot(LR - np.dot(Sa, matLR), matLR.T)*wvar_LR + mu * filter_HRT(HR-filter_HR(Sa.reshape(n1,n2))).reshape(n)*wvar_HR
+        Sa += mu1 * np.dot(LR - np.dot(Sa, matLR), matLR.T)*wvar_LR + mu2 * filter_HRT(HR-filter_HR(Sa.reshape(n1,n2))).reshape(n)*wvar_HR
     #plt.imshow(Sall.reshape(n1,n2)); plt.savefig('fig'+str(i))
 
         SL += mu2 * np.dot(LR - np.dot(SL, matLR), matLR.T)
@@ -401,9 +401,9 @@ def Combine2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, verbosity = 0)
     #    plt.imshow((HR - np.dot(Sall, matHR)).reshape(n1,n2))
     #    plt.show()
     if verbosity == 1:
-        plt.plot(vec, 'b', label = 'All', linewidth = 2)
-        plt.plot(vec2, 'r', label = 'LR', linewidth = 3)
-        plt.plot(vec3, 'g', label = 'HR', linewidth = 4)
+        plt.plot(vec, 'r', label = 'All', linewidth = 2)
+        plt.plot(vec2, 'g', label = 'LR', linewidth = 3)
+        plt.plot(vec3, 'b', label = 'HR', linewidth = 4)
         plt.show()
 
     return Sa, SH, SL

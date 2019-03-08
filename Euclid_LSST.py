@@ -59,7 +59,7 @@ N1, N2 = 51., 51.
 
 x0 = 195
 y0 = 245
-excess =100
+excess =50
 xstart =x0-excess
 xstop =x0+excess
 ystart =y0-excess
@@ -73,23 +73,22 @@ y_Euclid = y.flatten().astype(int)
 Ra_Euclid, Dec_Euclid = WEuclid.wcs_pix2world(y_Euclid, x_Euclid,0)
 
 
-#HSC coordinates
+#LSST coordinates
 Y0, X0 = WLSST.wcs_world2pix(Ra_Euclid, Dec_Euclid,0)
-X = np.linspace(np.min(X0), np.max(X0), np.max(X0)-np.min(X0)+1)
-Y = np.linspace(np.min(Y0), np.max(Y0), np.max(Y0)-np.min(Y0)+1)
-
+X = np.linspace(np.min(X0), np.max(X0)+1, np.max(X0)-np.min(X0)+2)
+Y = np.linspace(np.min(Y0), np.max(Y0)+1, np.max(Y0)-np.min(Y0)+1)
+print(X.shape, Y.shape)
 X,Y = np.meshgrid(X,Y)
 X_LSST = X.flatten()
 Y_LSST = Y.flatten()
-Ra_LSST, Dec_LSST = WLSST.all_pix2world(Y_LSST, X_LSST,0)  # type:
-Y_Euclid, X_Euclid = WEuclid.all_world2pix(Ra_LSST, Dec_LSST, 0)
+Ra_LSST, Dec_LSST = WLSST.wcs_pix2world(Y_LSST, X_LSST,0)  # type:
+Y_Euclid, X_Euclid = WEuclid.wcs_world2pix(Ra_LSST, Dec_LSST, 0)
 X_Euclid = X_Euclid.astype(int)
 Y_Euclid = Y_Euclid.astype(int)
 
 Cut_Euclid = Euclid0[x0-n1/2:x0+n1/2, y0-n2/2:y0+n2/2]
 Cut_LSST = LSST0[x0/2-N1/2+1:x0/2+N1/2+1, y0/2-N2/2+1:y0/2+N2/2+1]
 
-print(Cut_Euclid.shape, Cut_LSST.shape)
 
 hdus = fits.PrimaryHDU(Cut_Euclid)
 lists = fits.HDUList([hdus])
@@ -134,9 +133,7 @@ mat_LR = tools.make_mat2D_fft(x_Euclid, y_Euclid, X_Euclid, Y_Euclid, PSF_LSST)
 
 print('High resolution operator')
 h = x_Euclid[1]-x_Euclid[0]
-HR_filter = tools.make_vec2D_fft(x_Euclid, y_Euclid,x_Euclid[n1*n2/2], y_Euclid[n1*n2/2], PSF_Euclid, h)#.reshape(n1,n2)
-
-print(HR_filter.shape)
+HR_filter = tools.make_vec2D_fft(x_Euclid, y_Euclid,x_Euclid[n1*n2/2], y_Euclid[n1*n2/2], PSF_Euclid, h).reshape(n1,n2)
 
 
 print('Now lets solve this!')
@@ -145,7 +142,7 @@ def filter_HR(x):
 def filter_HRT(x):
     return scarlet.transformation.LinearFilter(HR_filter.T).dot(x)#mat_HST[:,np.int(n1*n1/2)].reshape(n1,n2)
 
-niter = 250
+niter = 2000
 Sall, SHR, SLR = tools.Combine2D_filter(Cut_Euclid, Cut_LSST.flatten(), filter_HR, filter_HRT, mat_LR, niter, verbosity = 1)
 
 if 1:
@@ -218,7 +215,6 @@ if 1:
     plt.savefig('Residual_joint_HSC_'+str(x0)+'_'+str(y0)+'.png')
     plt.show()
 
-stop
 objects = sep.extract(LSST0, 5*sigma_LR, deblend_cont = 0.05)
 
 ne1,ne2 = np.shape(Euclid0)
@@ -236,10 +232,11 @@ for object in objects:
 
     if (x >=N1/2) and (y>=N2/2) and (nl1-x>=N1/2) and (nl2-y>=N2/2):
 
-        YHR =Euclid0[x*2-n1/2:x*2+n1/2,y*2-n2/2:y*2+n2/2].reshape(n1*n2)
+        YHR =Euclid0[x*2-n1/2:x*2+n1/2,y*2-n2/2:y*2+n2/2]
         YLR =LSST0[x-N1/2:x+N1/2,y-N2/2:y+N2/2].reshape(N1*N2)
 
-        Sall, SHR, SLR = Solve(YHR, YLR, mat_HR, mat_LR, 20000, verbosity = 0)
+        Sall, SHR, SLR = tools.Combine2D_filter(YHR, YLR, filter_HR, filter_HRT, mat_LR, niter, verbosity = 1)
+
 
         Solution_all[x*2-n1/2:x*2+n1/2,y*2-n2/2:y*2+n2/2] = Sall.reshape(n1,n2)
         Solution_HR[x*2-n1/2:x*2+n1/2,y*2-n2/2:y*2+n2/2] = SHR.reshape(n1,n2)
