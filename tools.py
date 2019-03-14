@@ -74,6 +74,9 @@ def make_mat(a, A, p, xp):
     for m, xm in enumerate(A):
         mat[:, m]=make_vec1D(a, xm, p, xp, H)
     return mat
+
+def Spline1D(x):
+    return 1./12.*(np.abs(x-2)**3-4*np.abs(x-1)**3+6*np.abs(x)**3-4*np.abs(x+1)**3+np.abs(x+2)**3)
 ########################2D##################################################################################################################################
 ############################################################################################################################################################
 ############################################################################################################################################################
@@ -81,10 +84,14 @@ def make_mat(a, A, p, xp):
 ############################################################################################################################################################
 ############################################################################################################################################################
 ############################################################################################################################################################
+def Spline2D(x, y, x0, y0):
+    return Spline1D(x-x0)*Spline1D(y-y0)
+
 def Image(f, a, b):
     n1 = np.int(np.sqrt(a.size))
-    Img = np.zeros((n1, n1))
-    xgrid, ygrid = np.where(np.zeros((n1, n1)) == 0)
+    n2 = np.int(np.sqrt(b.size))
+    Img = np.zeros((n1, n2))
+    xgrid, ygrid = np.where(np.zeros((n1, n2)) == 0)
 
     Img[xgrid, ygrid] = f(a, b)
     return Img
@@ -97,7 +104,6 @@ def interp2D(a, b, A, B, Fm):
     hy = np.abs(B[np.int(np.sqrt(B.size))+1] - B[0])
 
     return np.array([Fm[k] * np.sinc((a-A[k])/(hx)) * np.sinc((b-B[k])/(hy)) for k in range(len(A))]).sum(axis=0)
-
 
 def conv2D(xp, yp, xk, yk, xm, ym, p, xpp, ypp, h):
     # x: numpy array, high resolution sampling
@@ -320,7 +326,6 @@ def Combine2D(HR, LR, matHR, matLR, niter, verbosity = 0):
 
     return Sa, SH, SL
 
-
 def linorm2D_filter(filter, filterT, shape, nit):
     """
       Estimates the maximal eigen value of a matrix A
@@ -352,6 +357,7 @@ def linorm2D_filter(filter, filterT, shape, nit):
         x0 = y / yn
 
     return 1./xn
+
 
 def Combine2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, verbosity = 0):
 
@@ -408,3 +414,131 @@ def Combine2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, verbosity = 0)
 
     return Sa, SH, SL
 
+def linorm2D_filterA(filter, filterT, A, shape, nit):
+    """
+      Estimates the maximal eigen value of a matrix A
+
+      INPUTS:
+          A: matrix
+          nit: number of iterations
+
+      OUTPUTS:
+          xn: maximal eigen value
+
+       EXAMPLES
+
+    """
+
+    n1,n2 = shape
+    x0 = np.random.rand(n1,n2)
+    x0 = x0 / np.sqrt(np.sum(x0 ** 2))
+
+    for i in range(nit):
+        x = np.dot(A,filter(x0).reshape(1,n1*n2))
+        xn = np.sqrt(np.sum(x ** 2))
+        xp = x / xn
+        y = filterT(np.dot(A.T,xp).reshape(n1,n2))
+        yn = np.sqrt(np.sum(y ** 2))
+
+        if yn < np.dot(y.reshape(1,n1*n2), x0.reshape(1,n1*n2).T):
+            break
+        x0 = y / yn
+
+    return 1./xn
+
+def linorm2D_A(S, A, nit):
+    """
+      Estimates the maximal eigen value of a matrix A
+
+      INPUTS:
+          A: matrix
+          nit: number of iterations
+
+      OUTPUTS:
+          xn: maximal eigen value
+
+       EXAMPLES
+
+    """
+
+    n1, n2 = np.shape(S)
+    x0 = np.random.rand(1, n1)
+    x0 = x0 / np.sqrt(np.sum(x0 ** 2))
+
+    for i in range(nit):
+        x = np.dot(np.dot(A,x0), S)
+        xn = np.sqrt(np.sum(x ** 2))
+        xp = x / xn
+        y = np.dot(A.T,np.dot( xp, S.T))
+        yn = np.sqrt(np.sum(y ** 2))
+
+        if yn < np.dot(y, x0.T):
+            break
+        x0 = y / yn
+
+    return 1./xn
+
+def Deblend2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, nc, verbosity = 0):
+    # HR: high resolution data
+    # LR: low resolution data
+    # filter_HR(T): filter for the high resolution PSF convolution (and its transpose)
+    # matLR: Operator for the downsampling and PSF convolution
+    # niter: number of iterations
+    # nc: number of colour components to extract
+    n = HR.size
+    n1 = np.int(HR.size**0.5)
+    n2 = np.int(HR.size ** 0.5)
+    N = LR.size
+    sigma_HR = MAD(HR.reshape(np.int(n**0.5), np.int(n**0.5)))
+    sigma_LR = MAD(LR.reshape(np.int(N**0.5), np.int(N**0.5)))
+
+    var_norm = 1./sigma_HR**2 + 1./sigma_LR**2
+    wvar_HR = (1./sigma_HR**2)*(1./var_norm)
+    wvar_LR = (1./sigma_LR**2)*(1./var_norm)
+
+
+
+    AHR = np.random.rand(nc,1)
+    AHR /= np.sum(AHR)
+    ALR = np.random.rand(nc,1)
+    ALR /= np.sum(ALR)
+
+    mu_HR = linorm2D_filterA(filter_HR, filter_HRT, AHR, (n1, n2), 10) / 10.
+    mu_LR = linorm2D_A(matLR, ALR, 10) / 1.
+    mu = (mu_HR + mu_LR) / 2
+
+    muALR = 0.1
+    muAHR = 0.1
+
+    Sa = np.zeros((nc,HR.size))
+    vec = np.zeros(niter)
+    t0 =time.clock()
+    for i in range(niter):
+        if (i % 100+1 == True) and (verbosity == 1):
+            print('Current iteration: ', i, ', time: ', time.clock()-t0)
+
+        Sa += mu_LR * np.dot(ALR,np.dot( LR - np.dot(np.dot(ALR.T,Sa), matLR), matLR.T))*wvar_LR + mu_HR * np.dot(AHR,filter_HRT((HR-filter_HR(np.dot(AHR.T,Sa))).reshape(n1,n2)).reshape(1,n1*n2))*wvar_HR
+
+        Sa[Sa < 0] = 0
+
+
+        ALR = ALR + muALR * \
+             np.dot(np.dot(LR - np.dot(np.dot(ALR.T, Sa), matLR), matLR.T), Sa.T).T*wvar_LR
+        AHR = AHR + muAHR * \
+             np.dot(filter_HRT(HR - filter_HR(np.dot(AHR.T, Sa).reshape(n1,n2)).reshape(1,n1*n2)), Sa.T).T*wvar_HR
+
+        AHR[AHR<0] = 0
+        ALR[ALR < 0] = 0
+        for j in range(nc):
+
+            AHR[j,:] = AHR[j,:]/(AHR[j,:]+ALR[j,:])
+            ALR[j,:] = ALR[j,:] / (AHR[j,:] + ALR[j,:])
+
+        vec[i] = np.std( LR - np.dot(np.dot(ALR.T,Sa), matLR))**2/2./sigma_LR**2 + np.std((HR-filter_HR(np.dot(AHR.T,Sa))).reshape(n1,n2))**2*wvar_LR/2./sigma_HR**2
+
+
+    if verbosity == 1:
+        plt.plot(vec, 'r', label = 'All', linewidth = 2)
+        plt.show()
+
+    return Sa

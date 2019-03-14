@@ -54,12 +54,12 @@ plt.imshow(np.log10(PSF_LSST), interpolation = 'none', cmap = 'gist_stern')
 plt.show()
 
 #Data
-n1, n2 = 101., 101.
-N1, N2 = 51., 51.
+n1, n2 = 201., 201.
+N1, N2 = 101., 101.
 
-x0 = 195
-y0 = 245
-excess =50
+x0 = 200
+y0 = 200
+excess = np.int(n1/2)
 xstart =x0-excess
 xstop =x0+excess
 ystart =y0-excess
@@ -75,8 +75,8 @@ Ra_Euclid, Dec_Euclid = WEuclid.wcs_pix2world(y_Euclid, x_Euclid,0)
 
 #LSST coordinates
 Y0, X0 = WLSST.wcs_world2pix(Ra_Euclid, Dec_Euclid,0)
-X = np.linspace(np.min(X0), np.max(X0)+1, np.max(X0)-np.min(X0)+2)
-Y = np.linspace(np.min(Y0), np.max(Y0)+1, np.max(Y0)-np.min(Y0)+1)
+X = np.linspace(np.min(X0), np.min(X0)+N1-1, N1)
+Y = np.linspace(np.min(Y0), np.min(Y0)+N2-1, N2)
 print(X.shape, Y.shape)
 X,Y = np.meshgrid(X,Y)
 X_LSST = X.flatten()
@@ -124,7 +124,7 @@ hdus = fits.PrimaryHDU(PSF_LSST)
 lists = fits.HDUList([hdus])
 lists.writeto('PSF_LSST.fits', clobber=True)
 
-
+print(Cut_Euclid.shape)
 
 print('building operator:')
 
@@ -144,6 +144,16 @@ def filter_HRT(x):
 
 niter = 2000
 Sall, SHR, SLR = tools.Combine2D_filter(Cut_Euclid, Cut_LSST.flatten(), filter_HR, filter_HRT, mat_LR, niter, verbosity = 1)
+
+hdus = fits.PrimaryHDU(Sall)
+lists = fits.HDUList([hdus])
+lists.writeto('Sall_EuclidLSST.fits', clobber=True)
+hdus = fits.PrimaryHDU(SHR)
+lists = fits.HDUList([hdus])
+lists.writeto('SHR_EuclidLSST.fits', clobber=True)
+hdus = fits.PrimaryHDU(SLR)
+lists = fits.HDUList([hdus])
+lists.writeto('SLR_EuclidLSST.fits', clobber=True)
 
 if 1:
     font = 25
@@ -215,6 +225,7 @@ if 1:
     plt.savefig('Residual_joint_HSC_'+str(x0)+'_'+str(y0)+'.png')
     plt.show()
 
+stop
 objects = sep.extract(LSST0, 5*sigma_LR, deblend_cont = 0.05)
 
 ne1,ne2 = np.shape(Euclid0)
@@ -231,11 +242,11 @@ for object in objects:
     y, x = object['x'], object['y']
 
     if (x >=N1/2) and (y>=N2/2) and (nl1-x>=N1/2) and (nl2-y>=N2/2):
-
+        print('image number: ', c, ' ou of: ', np.size(objects))
         YHR =Euclid0[x*2-n1/2:x*2+n1/2,y*2-n2/2:y*2+n2/2]
         YLR =LSST0[x-N1/2:x+N1/2,y-N2/2:y+N2/2].reshape(N1*N2)
 
-        Sall, SHR, SLR = tools.Combine2D_filter(YHR, YLR, filter_HR, filter_HRT, mat_LR, niter, verbosity = 1)
+        Sall, SHR, SLR = tools.Combine2D_filter(YHR, YLR, filter_HR, filter_HRT, mat_LR, niter, verbosity = 0)
 
 
         Solution_all[x*2-n1/2:x*2+n1/2,y*2-n2/2:y*2+n2/2] = Sall.reshape(n1,n2)
