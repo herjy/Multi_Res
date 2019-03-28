@@ -84,6 +84,9 @@ def Spline1D(x):
 ############################################################################################################################################################
 ############################################################################################################################################################
 ############################################################################################################################################################
+def sinc2D(x,y):
+    return np.sinc(x)*np.sinc(y)#np.sinc(np.sqrt(x**2+y**2))
+
 def Spline2D(x, y, x0, y0):
     return Spline1D(x-x0)*Spline1D(y-y0)
 
@@ -103,7 +106,7 @@ def interp2D(a, b, A, B, Fm):
     hx = np.abs(A[1]-A[0])
     hy = np.abs(B[np.int(np.sqrt(B.size))+1] - B[0])
 
-    return np.array([Fm[k] * np.sinc((a-A[k])/(hx)) * np.sinc((b-B[k])/(hy)) for k in range(len(A))]).sum(axis=0)
+    return np.array([Fm[k] * sinc2D((a-A[k])/(hx),(b-B[k])/(hy)) for k in range(len(A))]).sum(axis=0)#np.sinc((a-A[k])/(hx)) * np.sinc((b-B[k])/(hy))
 
 def conv2D(xp, yp, xk, yk, xm, ym, p, xpp, ypp, h):
     # x: numpy array, high resolution sampling
@@ -113,7 +116,7 @@ def conv2D(xp, yp, xk, yk, xm, ym, p, xpp, ypp, h):
     Fm = 0
 
     for i in range(np.size(xp)):
-        Fm += np.sinc((xm-(xk+xp[i]))/h)*np.sinc((ym-(yk+yp[i]))/h)*p[xpp[i], ypp[i]]
+        Fm += sinc2D((xm-(xk+xp[i]))/h,(ym-(yk+yp[i]))/h)*p[xpp[i], ypp[i]]#np.sinc((xm-(xk+xp[i]))/h)*np.sinc((ym-(yk+yp[i]))/h)*p[xpp[i], ypp[i]]
     return Fm*h/np.pi
 
 def make_vec2D(a, b, xm, ym, p, xp, yp, xpp, ypp, h):
@@ -133,7 +136,7 @@ def conv2D_fft(xk, yk, xm, ym, p, h):
 
     ker = np.zeros((np.int(xk.size**0.5), np.int(yk.size**0.5)))
     x,y = np.where(ker == 0)
-    ker[x,y] = np.sinc((xm-(xk))/h)*np.sinc((ym-(yk))/h)
+    ker[x,y] = sinc2D((xm-xk)/h,(ym-yk)/h)#np.sinc((xm-(xk))/h)*np.sinc((ym-(yk))/h)
 
     return scp.fftconvolve(ker, p, mode = 'same')*h/np.pi
 
@@ -507,8 +510,8 @@ def Deblend2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, nc, verbosity 
     mu_LR = linorm2D_A(matLR, ALR, 10) / 1.
     mu = (mu_HR + mu_LR) / 2
 
-    muALR = 0.1
-    muAHR = 0.1
+    muALR = 1.
+    muAHR = 1.
 
     Sa = np.zeros((nc,HR.size))
     vec = np.zeros(niter)
@@ -533,7 +536,8 @@ def Deblend2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, nc, verbosity 
 
             AHR[j,:] = AHR[j,:]/(AHR[j,:]+ALR[j,:])
             ALR[j,:] = ALR[j,:] / (AHR[j,:] + ALR[j,:])
-
+        print(AHR)
+        print(ALR)
         vec[i] = np.std( LR - np.dot(np.dot(ALR.T,Sa), matLR))**2/2./sigma_LR**2 + np.std((HR-filter_HR(np.dot(AHR.T,Sa))).reshape(n1,n2))**2*wvar_LR/2./sigma_HR**2
 
 
@@ -541,4 +545,4 @@ def Deblend2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, nc, verbosity 
         plt.plot(vec, 'r', label = 'All', linewidth = 2)
         plt.show()
 
-    return Sa
+    return Sa, AHR, ALR

@@ -53,9 +53,11 @@ import scarlet.psf_match
 imp.reload(scarlet.psf_match)
 
 
-target_psf = scarlet.psf_match.fit_target_psf(psfs, scarlet.psf_match.gaussian)
 
-diff_kernels, psf_blend = scarlet.psf_match.build_diff_kernels(psfs, target_psf, l0_thresh=0.0001)
+target_psf = scarlet.psf_match.fit_target_psf(psfs, scarlet.psf_match.Spline2D)
+plt.imshow((target_psf)); plt.colorbar(); plt.show()
+
+diff_kernels, psf_blend = scarlet.psf_match.build_diff_kernels(psfs, target_psf, l0_thresh=0.00001)
 
 rgb_map = [3,2,1]
 model = psf_blend.get_model()
