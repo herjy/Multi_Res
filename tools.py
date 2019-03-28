@@ -392,7 +392,7 @@ def Combine2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, verbosity = 0)
     for i in range(niter):
         if (i % 100+1 == True) and (verbosity == 1):
             print('Current iteration: ', i, ', time: ', time.clock()-t0)
-            plt.imshow((HR - np.dot(Sall, matHR)).reshape(n1, n2))
+            plt.imshow((LR - np.dot(Sa, matLR)).reshape(np.int(N**0.5), np.int(N**0.5)))
             plt.savefig('Residuals_HSC_'+str(i)+'.png')
         Sa += mu1 * np.dot(LR - np.dot(Sa, matLR), matLR.T)*wvar_LR + mu2 * filter_HRT(HR-filter_HR(Sa.reshape(n1,n2))).reshape(n)*wvar_HR
         #plt.imshow(Sall.reshape(n1,n2)); plt.savefig('fig'+str(i))
