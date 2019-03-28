@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import MuSCADeT as wine
 import scipy.signal as scp
-import SLIT
 import time
 import scipy.ndimage.filters as med
 import warnings
@@ -191,13 +190,9 @@ def make_filter2D(a, b, A, B, p, xp, yp, xpp, ypp):
     # On essaie, mais je crois que c'est xpp ypp en vrai
     xxp,yyp = np.where(np.zeros(((3*n+1)**0.5,(3*n+1)**0.5))==0)
 
-<<<<<<< HEAD
-    return make_vec(xx, yy, xm0, ym0, p, xx, yy, xpp, ypp, h)*(1-np.float(len(a))/len(xx))
 
-
-=======
     return make_vec2D(xx, yy, xm0, ym0, p, xx, yy, xpp, ypp, h)*(1-np.float(len(a))/len(xx))
->>>>>>> origin/python2.7
+
 
 
 def linorm2D(S, nit):
@@ -245,7 +240,7 @@ def MAD(x,n=3):
     ##OUTPUTS:
     ##  -S: the source light profile.
     ##  -FS: the lensed version of the estimated source light profile
-    xw = wine.wave_transform.wave_transform(x, np.int(np.log2(x.shape[0])))[0,:,:]
+    xw = wine.wave_transform(x, np.int(np.log2(x.shape[0])))[0,:,:]
     meda = med.median_filter(xw,size = (n,n))
     medfil = np.abs(xw-meda)#np.median(x))
     sh = np.shape(xw)
@@ -397,8 +392,10 @@ def Combine2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, verbosity = 0)
     for i in range(niter):
         if (i % 100+1 == True) and (verbosity == 1):
             print('Current iteration: ', i, ', time: ', time.clock()-t0)
+            plt.imshow((HR - np.dot(Sall, matHR)).reshape(n1, n2))
+            plt.savefig('Residuals_HSC_'+str(i)+'.png')
         Sa += mu1 * np.dot(LR - np.dot(Sa, matLR), matLR.T)*wvar_LR + mu2 * filter_HRT(HR-filter_HR(Sa.reshape(n1,n2))).reshape(n)*wvar_HR
-    #plt.imshow(Sall.reshape(n1,n2)); plt.savefig('fig'+str(i))
+        #plt.imshow(Sall.reshape(n1,n2)); plt.savefig('fig'+str(i))
 
         SL += mu2 * np.dot(LR - np.dot(SL, matLR), matLR.T)
         if i < 10000:
@@ -416,6 +413,7 @@ def Combine2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, verbosity = 0)
     #    plt.imshow((HR - np.dot(Sall, matHR)).reshape(n1,n2))
     #    plt.show()
     if verbosity == 1:
+        plt.show()
         plt.plot(vec, 'r', label = 'All', linewidth = 2)
         plt.plot(vec2, 'g', label = 'LR', linewidth = 3)
         plt.plot(vec3, 'b', label = 'HR', linewidth = 4)
