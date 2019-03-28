@@ -36,7 +36,7 @@ def make_vec1D(a, xm, p, xp, h):
 
     vec=np.zeros(a.size)
     for k, xk in enumerate(a):
-        vec[k]=conv(a, xk, xm, p, xp, h)
+        vec[k]=conv1D(a, xk, xm, p, xp, h)
 
     return vec
 
@@ -53,12 +53,12 @@ def make_filter1D(a, A, p, xp):
     xx=np.linspace(m-n, M+n, 3*n+1)
 
 
-    return make_vec(xx, xm0, p, xx, H)*(1-np.float(len(a))/len(xx))
+    return make_vec1D(xx, xm0, p, xx, H)*(1-np.float(len(a))/len(xx))
 
 
 
 def make_mat_alt1D(a,A,p,xp):
-    vec = make_filter(a, A, p, xp)
+    vec = make_filter1D(a, A, p, xp)
     mat = np.zeros((a.size, A.size))
     n = len(a)
     h =A[1]-A[0]
@@ -72,8 +72,11 @@ def make_mat(a, A, p, xp):
     mat=np.zeros((a.size, A.size))
     H=np.abs(a[1]-a[0])
     for m, xm in enumerate(A):
-        mat[:, m]=make_vec(a, xm, p, xp, H)
+        mat[:, m]=make_vec1D(a, xm, p, xp, H)
     return mat
+
+def Spline1D(x):
+    return 1./12.*(np.abs(x-2)**3-4*np.abs(x-1)**3+6*np.abs(x)**3-4*np.abs(x+1)**3+np.abs(x+2)**3)
 ########################2D##################################################################################################################################
 ############################################################################################################################################################
 ############################################################################################################################################################
@@ -81,10 +84,17 @@ def make_mat(a, A, p, xp):
 ############################################################################################################################################################
 ############################################################################################################################################################
 ############################################################################################################################################################
+def sinc2D(x,y):
+    return np.sinc(x)*np.sinc(y)#np.sinc(np.sqrt(x**2+y**2))
+
+def Spline2D(x, y, x0, y0):
+    return Spline1D(x-x0)*Spline1D(y-y0)
+
 def Image(f, a, b):
     n1 = np.int(np.sqrt(a.size))
-    Img = np.zeros((n1, n1))
-    xgrid, ygrid = np.where(np.zeros((n1, n1)) == 0)
+    n2 = np.int(np.sqrt(b.size))
+    Img = np.zeros((n1, n2))
+    xgrid, ygrid = np.where(np.zeros((n1, n2)) == 0)
 
     Img[xgrid, ygrid] = f(a, b)
     return Img
@@ -96,8 +106,7 @@ def interp2D(a, b, A, B, Fm):
     hx = np.abs(A[1]-A[0])
     hy = np.abs(B[np.int(np.sqrt(B.size))+1] - B[0])
 
-    return np.array([Fm[k] * np.sinc((a-A[k])/(hx)) * np.sinc((b-B[k])/(hy)) for k in range(len(A))]).sum(axis=0)
-
+    return np.array([Fm[k] * sinc2D((a-A[k])/(hx),(b-B[k])/(hy)) for k in range(len(A))]).sum(axis=0)#np.sinc((a-A[k])/(hx)) * np.sinc((b-B[k])/(hy))
 
 def conv2D(xp, yp, xk, yk, xm, ym, p, xpp, ypp, h):
     # x: numpy array, high resolution sampling
@@ -107,7 +116,7 @@ def conv2D(xp, yp, xk, yk, xm, ym, p, xpp, ypp, h):
     Fm = 0
 
     for i in range(np.size(xp)):
-        Fm += np.sinc((xm-(xk+xp[i]))/h)*np.sinc((ym-(yk+yp[i]))/h)*p[xpp[i], ypp[i]]
+        Fm += sinc2D((xm-(xk+xp[i]))/h,(ym-(yk+yp[i]))/h)*p[xpp[i], ypp[i]]#np.sinc((xm-(xk+xp[i]))/h)*np.sinc((ym-(yk+yp[i]))/h)*p[xpp[i], ypp[i]]
     return Fm*h/np.pi
 
 def make_vec2D(a, b, xm, ym, p, xp, yp, xpp, ypp, h):
@@ -127,7 +136,7 @@ def conv2D_fft(xk, yk, xm, ym, p, h):
 
     ker = np.zeros((np.int(xk.size**0.5), np.int(yk.size**0.5)))
     x,y = np.where(ker == 0)
-    ker[x,y] = np.sinc((xm-(xk))/h)*np.sinc((ym-(yk))/h)
+    ker[x,y] = sinc2D((xm-xk)/h,(ym-yk)/h)#np.sinc((xm-(xk))/h)*np.sinc((ym-(yk))/h)
 
     return scp.fftconvolve(ker, p, mode = 'same')*h/np.pi
 
@@ -182,9 +191,13 @@ def make_filter2D(a, b, A, B, p, xp, yp, xpp, ypp):
     # On essaie, mais je crois que c'est xpp ypp en vrai
     xxp,yyp = np.where(np.zeros(((3*n+1)**0.5,(3*n+1)**0.5))==0)
 
+<<<<<<< HEAD
     return make_vec(xx, yy, xm0, ym0, p, xx, yy, xpp, ypp, h)*(1-np.float(len(a))/len(xx))
 
 
+=======
+    return make_vec2D(xx, yy, xm0, ym0, p, xx, yy, xpp, ypp, h)*(1-np.float(len(a))/len(xx))
+>>>>>>> origin/python2.7
 
 
 def linorm2D(S, nit):
@@ -232,16 +245,17 @@ def MAD(x,n=3):
     ##OUTPUTS:
     ##  -S: the source light profile.
     ##  -FS: the lensed version of the estimated source light profile
-    xw = wine.wave_transform(x, np.int(np.log2(x.shape[0])))[0,:,:]
+    xw = wine.wave_transform.wave_transform(x, np.int(np.log2(x.shape[0])))[0,:,:]
     meda = med.median_filter(xw,size = (n,n))
     medfil = np.abs(xw-meda)#np.median(x))
     sh = np.shape(xw)
     sigma = 1.48*np.median((medfil))
     return sigma
 
-def get_psf(Field,x,y,n):
+def get_psf(Field,x,y,n, HST = False):
     assert len(x)==len(y)
     PSF = 0.
+    PSF_n = 0
     xy0 = np.int(n/2)
     for i in range(len(x)):
         Star = Field[np.int(x[i]-xy0):np.int(x[i]+xy0+1),np.int(y[i]-xy0):np.int(y[i]+xy0+1)]
@@ -253,9 +267,20 @@ def get_psf(Field,x,y,n):
 
         sigma = MAD(Star, n=3)
         PSFt = wine.MCA.mr_filter(Star, 20, 5, sigma, lvl = np.int(np.log2(n)))[0]
+        PSF_n += Star/np.sum(Star)
         PSF+=PSFt/np.sum(PSFt)
 
-    return PSF
+    if HST == True:
+        Res = PSF_n-PSF
+        n1,n2 = Res.shape
+        Sup = np.copy(Res)*0
+        x0,y0 = n1/2, n2/2
+        x,y = np.where(Sup==0)
+        r = np.sqrt((x-x0)**2+(y-y0)**2).reshape(n1,n2)
+        Sup[r<4] = Res[r<4]
+        PSF+=Sup
+    PSF[PSF<0] = 0
+    return PSF/np.sum(PSF)
 
 def Combine2D(HR, LR, matHR, matLR, niter, verbosity = 0):
 
@@ -310,7 +335,6 @@ def Combine2D(HR, LR, matHR, matLR, niter, verbosity = 0):
 
     return Sa, SH, SL
 
-
 def linorm2D_filter(filter, filterT, shape, nit):
     """
       Estimates the maximal eigen value of a matrix A
@@ -343,9 +367,12 @@ def linorm2D_filter(filter, filterT, shape, nit):
 
     return 1./xn
 
-def Combine2D_filter(HR, LR, filter_HR, filter_HRT, mat_LR, niter, verbosity = 0):
+
+def Combine2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, verbosity = 0):
 
     n = HR.size
+    n1 = np.int(HR.size**0.5)
+    n2 = np.int(HR.size ** 0.5)
     N = LR.size
     sigma_HR = MAD(HR.reshape(np.int(n**0.5), np.int(n**0.5)))
     sigma_LR = MAD(LR.reshape(np.int(N**0.5), np.int(N**0.5)))
@@ -354,9 +381,9 @@ def Combine2D_filter(HR, LR, filter_HR, filter_HRT, mat_LR, niter, verbosity = 0
     wvar_HR = (1./sigma_HR**2)*(1./var_norm)
     wvar_LR = (1./sigma_LR**2)*(1./var_norm)
 
-    mu1 = linorm2D_filter(filter_HR, filter_HRT, HR.size, 10)/1.
-    mu2 = linorm2D(mat_LR, 10)/1.
-    mu = (mu1+mu2)
+    mu1 = linorm2D_filter(filter_HR, filter_HRT, HR.size, 10)/10.
+    mu2 = linorm2D(matLR, 10)/1.
+    mu = (mu1+mu2)/2
 
 
 
@@ -366,32 +393,162 @@ def Combine2D_filter(HR, LR, filter_HR, filter_HRT, mat_LR, niter, verbosity = 0
     vec = np.zeros(niter)
     vec2 = np.zeros(niter)
     vec3 = np.zeros(niter)
+    t0 =time.clock()
     for i in range(niter):
-        if (i % 1000+1 == True) and (verbosity == 1):
-            print(i)
-        Sa += mu * np.dot(LR - np.dot(Sa, matLR), matLR.T)*wvar_LR + mu * filter_HRT(HR-np.filter_HR(Sa))*wvar_HR
+        if (i % 100+1 == True) and (verbosity == 1):
+            print('Current iteration: ', i, ', time: ', time.clock()-t0)
+        Sa += mu1 * np.dot(LR - np.dot(Sa, matLR), matLR.T)*wvar_LR + mu2 * filter_HRT(HR-filter_HR(Sa.reshape(n1,n2))).reshape(n)*wvar_HR
     #plt.imshow(Sall.reshape(n1,n2)); plt.savefig('fig'+str(i))
 
-        SL += mu2 * np.dot(LR - np.dot(SLR, matLR), matLR.T)
+        SL += mu2 * np.dot(LR - np.dot(SL, matLR), matLR.T)
         if i < 10000:
-            SH += mu1 * filter_HRT(HR-np.filter_HR(Sa))
+            SH += mu1 * filter_HRT(HR-filter_HR(SH.reshape(n1,n2))).reshape(n)
             SH[SH < 0] = 0
         Sa[Sa < 0] = 0
         SL[SL < 0] = 0
 
-        vec[i] = np.std(LR - filter_LR(Sa))**2/2. + np.std(HR-filter_HR(Sa))**2*wvar_LR/2.
-        vec2[i] = np.std(LR - filter_LR(SL))**2
-        vec3[i] = np.std(HR - filter_HR(SH))**2
+        vec[i] = np.std(LR - np.dot(Sa, matLR))**2/2./sigma_LR**2 + np.std(HR-filter_HR(Sa.reshape(n1,n2)))**2*wvar_LR/2./sigma_HR**2
+        vec2[i] = np.std(LR - np.dot(SL, matLR))**2/sigma_LR**2
+        vec3[i] = np.std(HR - filter_HR(SH.reshape(n1,n2)))**2/sigma_HR**2
     #    plt.subplot(121)
     #    plt.imshow((LR - np.dot(Sall, matLR)).reshape(N1,N2))
     #    plt.subplot(122)
     #    plt.imshow((HR - np.dot(Sall, matHR)).reshape(n1,n2))
     #    plt.show()
     if verbosity == 1:
-        plt.plot(vec, 'b', label = 'All', linewidth = 2)
-        plt.plot(vec2, 'r', label = 'LR', linewidth = 3)
-        plt.plot(vec3, 'g', label = 'HR', linewidth = 4)
+        plt.plot(vec, 'r', label = 'All', linewidth = 2)
+        plt.plot(vec2, 'g', label = 'LR', linewidth = 3)
+        plt.plot(vec3, 'b', label = 'HR', linewidth = 4)
         plt.show()
 
     return Sa, SH, SL
 
+def linorm2D_filterA(filter, filterT, A, shape, nit):
+    """
+      Estimates the maximal eigen value of a matrix A
+
+      INPUTS:
+          A: matrix
+          nit: number of iterations
+
+      OUTPUTS:
+          xn: maximal eigen value
+
+       EXAMPLES
+
+    """
+
+    n1,n2 = shape
+    x0 = np.random.rand(n1,n2)
+    x0 = x0 / np.sqrt(np.sum(x0 ** 2))
+
+    for i in range(nit):
+        x = np.dot(A,filter(x0).reshape(1,n1*n2))
+        xn = np.sqrt(np.sum(x ** 2))
+        xp = x / xn
+        y = filterT(np.dot(A.T,xp).reshape(n1,n2))
+        yn = np.sqrt(np.sum(y ** 2))
+
+        if yn < np.dot(y.reshape(1,n1*n2), x0.reshape(1,n1*n2).T):
+            break
+        x0 = y / yn
+
+    return 1./xn
+
+def linorm2D_A(S, A, nit):
+    """
+      Estimates the maximal eigen value of a matrix A
+
+      INPUTS:
+          A: matrix
+          nit: number of iterations
+
+      OUTPUTS:
+          xn: maximal eigen value
+
+       EXAMPLES
+
+    """
+
+    n1, n2 = np.shape(S)
+    x0 = np.random.rand(1, n1)
+    x0 = x0 / np.sqrt(np.sum(x0 ** 2))
+
+    for i in range(nit):
+        x = np.dot(np.dot(A,x0), S)
+        xn = np.sqrt(np.sum(x ** 2))
+        xp = x / xn
+        y = np.dot(A.T,np.dot( xp, S.T))
+        yn = np.sqrt(np.sum(y ** 2))
+
+        if yn < np.dot(y, x0.T):
+            break
+        x0 = y / yn
+
+    return 1./xn
+
+def Deblend2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, nc, verbosity = 0):
+    # HR: high resolution data
+    # LR: low resolution data
+    # filter_HR(T): filter for the high resolution PSF convolution (and its transpose)
+    # matLR: Operator for the downsampling and PSF convolution
+    # niter: number of iterations
+    # nc: number of colour components to extract
+    n = HR.size
+    n1 = np.int(HR.size**0.5)
+    n2 = np.int(HR.size ** 0.5)
+    N = LR.size
+    sigma_HR = MAD(HR.reshape(np.int(n**0.5), np.int(n**0.5)))
+    sigma_LR = MAD(LR.reshape(np.int(N**0.5), np.int(N**0.5)))
+
+    var_norm = 1./sigma_HR**2 + 1./sigma_LR**2
+    wvar_HR = (1./sigma_HR**2)*(1./var_norm)
+    wvar_LR = (1./sigma_LR**2)*(1./var_norm)
+
+
+
+    AHR = np.random.rand(nc,1)
+    AHR /= np.sum(AHR)
+    ALR = np.random.rand(nc,1)
+    ALR /= np.sum(ALR)
+
+    mu_HR = linorm2D_filterA(filter_HR, filter_HRT, AHR, (n1, n2), 10) / 10.
+    mu_LR = linorm2D_A(matLR, ALR, 10) / 1.
+    mu = (mu_HR + mu_LR) / 2
+
+    muALR = 1.
+    muAHR = 1.
+
+    Sa = np.zeros((nc,HR.size))
+    vec = np.zeros(niter)
+    t0 =time.clock()
+    for i in range(niter):
+        if (i % 100+1 == True) and (verbosity == 1):
+            print('Current iteration: ', i, ', time: ', time.clock()-t0)
+
+        Sa += mu_LR * np.dot(ALR,np.dot( LR - np.dot(np.dot(ALR.T,Sa), matLR), matLR.T))*wvar_LR + mu_HR * np.dot(AHR,filter_HRT((HR-filter_HR(np.dot(AHR.T,Sa))).reshape(n1,n2)).reshape(1,n1*n2))*wvar_HR
+
+        Sa[Sa < 0] = 0
+
+
+        ALR = ALR + muALR * \
+             np.dot(np.dot(LR - np.dot(np.dot(ALR.T, Sa), matLR), matLR.T), Sa.T).T*wvar_LR
+        AHR = AHR + muAHR * \
+             np.dot(filter_HRT(HR - filter_HR(np.dot(AHR.T, Sa).reshape(n1,n2)).reshape(1,n1*n2)), Sa.T).T*wvar_HR
+
+        AHR[AHR<0] = 0
+        ALR[ALR < 0] = 0
+        for j in range(nc):
+
+            AHR[j,:] = AHR[j,:]/(AHR[j,:]+ALR[j,:])
+            ALR[j,:] = ALR[j,:] / (AHR[j,:] + ALR[j,:])
+        print(AHR)
+        print(ALR)
+        vec[i] = np.std( LR - np.dot(np.dot(ALR.T,Sa), matLR))**2/2./sigma_LR**2 + np.std((HR-filter_HR(np.dot(AHR.T,Sa))).reshape(n1,n2))**2*wvar_LR/2./sigma_HR**2
+
+
+    if verbosity == 1:
+        plt.plot(vec, 'r', label = 'All', linewidth = 2)
+        plt.show()
+
+    return Sa, AHR, ALR
