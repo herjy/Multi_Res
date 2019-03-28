@@ -184,16 +184,6 @@ def make_filter2D(a, b, A, B, p, xp, yp, xpp, ypp):
 
     return make_vec(xx, yy, xm0, ym0, p, xx, yy, xpp, ypp, h)*(1-np.float(len(a))/len(xx))
 
-def make_mat_alt2D(a, b, A, B, p, xp, yp, xpp, ypp):
-    vec = make_filter(a, b, A, B, p, xp, yp, xpp, ypp)
-
-    mat = np.zeros((a.size, A.size))
-    n = np.size(vec)
-    h =A[1]-A[0]
-
-    for k in range(A.size):
-        mat[:,k] = vec[n+n/2-k*h : 2*n+n/2-k*h]/h
-    return mat
 
 
 
