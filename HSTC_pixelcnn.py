@@ -12,8 +12,8 @@ import warnings
 warnings.simplefilter("ignore")
 
 
-hdu_HST= fits.open('/Users/remy/Desktop/LSST_Project/Multi_Resolution/HSTC/acs_I_030mas_052_sci.fits')
-hdu_HSC= fits.open('/Users/remy/Desktop/LSST_Project/Multi_Resolution/HSTC/s18a_dud/deepCoadd-results/HSC-I/9813/4,3/calexp-HSC-I-9813-4,3.fits')
+hdu_HST= fits.open('/Users/remy/Desktop/LSST_Project/Multi_Resolution/HSTC/acs_I_030mas_029_sci.fits')
+hdu_HSC= fits.open('/Users/remy/Desktop/LSST_Project/Multi_Resolution/HSTC/cutout-HSC-I-9813-pdr1_udeep-190227-231046.fits')
 FHST = hdu_HST[0].data
 FHSC = hdu_HSC[1].data
 hdr_HST= hdu_HST[0].header
@@ -29,8 +29,8 @@ make_PSF = 0
 if make_PSF == 1:
     np1, np2 = 170, 170
 
-    xpsf = np.array([ 11070,5978])
-    ypsf = np.array([ 10621,8823])
+    xpsf = np.array([4490, 9759])  # np.array([5778, 5470, 4490, 9759, 3822])
+    ypsf = np.array([468, 365])
     Rapsf, Decpsf = WHST.wcs_pix2world(ypsf, xpsf,0)
     Ypsf, Xpsf = WHSC.wcs_world2pix(Rapsf, Decpsf,0)
 
@@ -46,18 +46,17 @@ if make_PSF == 1:
     # Match each PSF to the target PSF
     diff_kernels, psf_blend = scarlet.psf_match.build_diff_kernels(PSF_HSC.reshape(1,np1,np2), PSF_HST.reshape(1,np1, np2), l0_thresh=0.000001)
     PSF_HSC = diff_kernels[0,:,:]
-    PSF_HSC[PSF_HSC<0] = 0
     PSF_HSC /= np.sum(PSF_HSC)
 
 
 
     hdus = fits.PrimaryHDU(PSF_HST)
     lists = fits.HDUList([hdus])
-    lists.writeto('../HSTC/PSF_HST_52.fits', clobber=True)
+    lists.writeto('../HSTC/PSF_HST_29.fits', clobber=True)
 
     hdus = fits.PrimaryHDU(PSF_HSC)
     lists = fits.HDUList([hdus])
-    lists.writeto('../HSTC/PSF_HSC_52.fits', clobber=True)
+    lists.writeto('../HSTC/PSF_HSC_29.fits', clobber=True)
 
     plt.subplot(121)
     plt.imshow(np.log10(PSF_HST), interpolation = 'nearest', cmap = 'inferno')
@@ -68,23 +67,22 @@ if make_PSF == 1:
     plt.show()
 
 else:
-    PSF_HSC = fits.open('../HSTC/PSF_HSC_52.fits')[0].data
+    PSF_HSC = fits.open('../HSTC/PSF_HSC_29.fits')[0].data
+
 #HST coordinates
 #########large###big##big##faint#####works
 
 
-x0 = 10873 #9376 #9150 #7374 #
-y0 = 10704 #10117 #9633 #10593 #
-excess =71
+x0 = 6726#6296#6284#6296#5388#5388#2675 #1436 #5992#5388 -8  #9132 -6
+y0 = 13113#13632#11195#13632#14579 #14579#4888 #1109 #1926#14579 -4 #10825 -4
+excess =61
 
 x_HST, y_HST, X_HSC, Y_HSC, X_HST, Y_HST = tools.match_patches(x0,y0,WHSC, WHST, excess)
 
-cut_HST, cut_HSC = tools.make_patches(x_HST-2, y_HST-2, X_HSC, Y_HSC, FHST, FHSC)
+cut_HST, cut_HSC = tools.make_patches(x_HST-8, y_HST-5, X_HSC, Y_HSC, FHST, FHSC)
 
 n1, n2 = cut_HST.shape
 N1, N2 = cut_HSC.shape
-
-cut_HST+=np.random.randn(n1,n2)*tools.MAD(cut_HST, shape = (n1,n2))*5
 
 #cut_HST += np.random.randn(n1,n2)*tools.MAD(cut_HST)*5
 
@@ -92,8 +90,7 @@ plt.plot(x_HST,y_HST,'or')
 plt.plot(X_HST,Y_HST, 'ob')
 plt.show()
 
-print(n1,n2,N1,N2, x_HST.size**0.5)
-
+print(n1,n2,N1,N2)
 
 plt.subplot(121)
 plt.imshow(cut_HST, cmap = 'inferno', interpolation = 'nearest')
@@ -111,6 +108,8 @@ lists.writeto('../HSTC/Cut_HST.fits', clobber=True)
 hdus = fits.PrimaryHDU(cut_HSC, header = hdr_HSC)
 lists = fits.HDUList([hdus])
 lists.writeto('../HSTC/Cut_HSC.fits', clobber=True)
+
+
 
 compute = 1
 if compute:
@@ -137,8 +136,8 @@ if np.abs(compute-1):
 
 #reg_HR = np.sum(HR_filter**2)**0.5
 
-print('Noise in HST:', tools.MAD(cut_HST, shape = (n1,n2)))
-print('Noise in HSC:', tools.MAD(cut_HSC, shape = (N1,N2)))
+print('Noise in HST:', tools.MAD(cut_HST))
+print('Noise in HSC:', tools.MAD(cut_HSC))
 
 
 module_path='/Users/remy/Desktop/LSST_Project/scarlet_Pixelcnn/scarlet-pixelcnn/modules/pixelcnn_out'
@@ -148,12 +147,13 @@ sess.run(tf.global_variables_initializer())
 x_nn = tf.placeholder(shape=(1,32,32,1), dtype=tf.float32)
 
 out = pixelcnn(x_nn, as_dict=True)['grads']
+
 def grad_nn(y):
     return sess.run(out, feed_dict={x_nn: y.reshape((1,32,32,1))})[0,:,:,0]
 
 niter = 500
 nc = 2
-Sall, SHR, SLR = tools.Combine2D_filter(cut_HST, cut_HSC, mat_HSC, niter, reg_nn = None, verbosity = 1, reg_HR =0)
+Sall, SHR, SLR = tools.Combine2D_filter(cut_HST, cut_HSC, mat_HSC, niter, reg_nn = grad_nn, verbosity = 1, reg_HR =0)
 #Sall = tools.Deblend2D_filter(cut_HST.flatten(), cut_HSC.flatten(), filter_HR, filter_HRT, mat_HSC, niter, nc, verbosity = 1)
 
 
@@ -184,6 +184,18 @@ if 1:
     plt.title('HSC deconvolution', fontsize = font)
     plt.axis('off')
     plt.savefig('Images/HSC-deconvolution_'+str(x0)+'_'+str(y0)+'.png')
+    plt.figure(9)
+    plt.imshow(SHR, interpolation = 'none', cmap = 'inferno')
+    plt.colorbar()
+    plt.title('HST deconvolution', fontsize = font)
+    plt.axis('off')
+    plt.savefig('Images/HST_deconvolution_'+str(x0)+'_'+str(y0)+'.png')
+    plt.figure(5)
+    plt.imshow((Sall), interpolation = 'none', cmap = 'inferno')
+    plt.colorbar()
+    plt.title('HST joint model', fontsize = font)
+    plt.axis('off')
+    plt.savefig('Images/HST_joint_model_'+str(x0)+'_'+str(y0)+'.png')
     plt.figure(4)
     plt.imshow(np.dot(Sall.flatten(), mat_HSC).reshape(N1,N2), interpolation = 'none', cmap = 'inferno')
     plt.colorbar()
@@ -202,6 +214,12 @@ if 1:
     plt.colorbar()
     plt.axis('off')
     plt.savefig('Images/HSC_image_'+str(x0)+'_'+str(y0)+'.png')
+    plt.figure(8)
+    plt.title('HST deconvolution model', fontsize = font)
+    plt.imshow((SHR), interpolation = 'none', cmap = 'inferno')
+    plt.colorbar()
+    plt.axis('off')
+    plt.savefig('Images/HST_deconvolution_model_'+str(x0)+'_'+str(y0)+'.png')
     plt.figure(10)
     plt.title('HSC deconvolution model', fontsize = font)
     plt.imshow(np.dot(SLR.flatten(), mat_HSC).reshape(N1,N2), interpolation = 'none', cmap = 'inferno')
@@ -220,9 +238,4 @@ if 1:
     plt.colorbar()
     plt.axis('off')
     plt.savefig('Images/Residual_joint_HSC_'+str(x0)+'_'+str(y0)+'.png')
-    plt.figure(15)
-    plt.title('Residual deconvolution HSC', fontsize = font)
-    plt.imshow(cut_HSC - np.dot(SLR.flatten(), mat_HSC).reshape(N1,N2), interpolation = 'none', cmap = 'inferno')
-    plt.colorbar()
-    plt.axis('off')
     plt.show()

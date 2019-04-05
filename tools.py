@@ -107,25 +107,6 @@ def interp2D(a, b, A, B, Fm):
 
     return np.array([Fm[k] * sinc2D((a-A[k])/(hx),(b-B[k])/(hy)) for k in range(len(A))]).sum(axis=0)#np.sinc((a-A[k])/(hx)) * np.sinc((b-B[k])/(hy))
 
-def conv2D(xp, yp, xk, yk, xm, ym, p, xpp, ypp, h):
-    # x: numpy array, high resolution sampling
-    # X: numpy array, low resolution sampling
-    # p: numpy array, psf sampled at high resolution
-    # xm: scalar, location of sampling in thelow resolution grid
-    Fm = 0
-
-    for i in range(np.size(xp)):
-        Fm += sinc2D((xm-(xk+xp[i]))/h,(ym-(yk+yp[i]))/h)*p[xpp[i], ypp[i]]#np.sinc((xm-(xk+xp[i]))/h)*np.sinc((ym-(yk+yp[i]))/h)*p[xpp[i], ypp[i]]
-    return Fm*h/np.pi
-
-def make_vec2D(a, b, xm, ym, p, xp, yp, xpp, ypp, h):
-    vec = np.zeros(a.size)
-
-    for k in range(np.size(a)):
-
-        vec[k] = conv2D(xp, yp, a[k], b[k], xm, ym, p, xpp, ypp, h)
-
-    return vec.flatten()
 
 def conv2D_fft(xk, yk, xm, ym, p, h):
     # x: numpy array, high resolution sampling
@@ -155,43 +136,9 @@ def make_mat2D_fft(a, b, A, B, p):
             #    print('Matrix line: ', m, ' out of ', np.size(B))
             #    print('time: ', time.clock()-t0)
             mat[:, m] = make_vec2D_fft(a, b, A[m], B[m], p, h)
+            mat[:, m] /= np.sum(mat[:,m])
 
     return mat
-
-def make_mat2D(a, b, A, B, p, xp, yp, xpp,ypp):
-    mat = np.zeros((a.size, B.size))
-    h = a[1]-a[0]
-    assert h!=0
-
-    for m in range(np.size(B)):
-            #if (m % 100+1 == True):
-            #    print('Matrix line: ', m, ' out of ', np.size(B))
-            mat[:, m] = make_vec2D(a, b, A[m], B[m], p, xp, yp, xpp, ypp, h)
-
-    return mat
-
-def make_filter2D(a, b, A, B, p, xp, yp, xpp, ypp):
-    ## Low resolution sampling
-    H=A[1]-A[0]
-    h=a[1]-a[0]
-    xm0=np.array(A[len(A)/2])
-    ym0=np.array(B[len(B)/2])
-
-    ma=np.min(a)
-    Ma=np.max(a)
-    mb=np.min(b)
-    Mb=np.max(b)
-    N=len(A)
-    n=len(a)
-    #Extension of the sampling to account for sinc edges
-    xx=np.linspace(ma-n, Ma+n, 3*n+1)
-    yy=np.linspace(mb-n, Mb+n, 3*n+1)
-
-    # On essaie, mais je crois que c'est xpp ypp en vrai
-    xxp,yyp = np.where(np.zeros(((3*n+1)**0.5,(3*n+1)**0.5))==0)
-
-
-    return make_vec2D(xx, yy, xm0, ym0, p, xx, yy, xpp, ypp, h)*(1-np.float(len(a))/len(xx))
 
 
 
@@ -218,7 +165,7 @@ def linorm2D(S, nit):
         x = np.dot(x0, S)
         xn = np.sqrt(np.sum(x ** 2))
         xp = x / xn
-        y = np.dot( xp, S.T)
+        y = np.dot(xp, S.T)
         yn = np.sqrt(np.sum(y ** 2))
 
         if yn < np.dot(y, x0.T):
@@ -227,7 +174,7 @@ def linorm2D(S, nit):
 
     return 1./xn
 
-def MAD(x,n=3):
+def MAD(x, shape = (0,0),n=3):
     ##DESCRIPTION:
     ##  Estimates the noise standard deviation from Median Absolute Deviation
     ##
@@ -240,6 +187,11 @@ def MAD(x,n=3):
     ##OUTPUTS:
     ##  -S: the source light profile.
     ##  -FS: the lensed version of the estimated source light profile
+
+    if shape != (0,0):
+        n = np.min(shape)
+        x = x[:n, :n]
+
     xw = wine.wave_transform(x, np.int(np.log2(x.shape[0])))[0,:,:]
     meda = med.median_filter(xw,size = (n,n))
     medfil = np.abs(xw-meda)#np.median(x))
@@ -255,40 +207,34 @@ def get_psf(FHR, FLR,x0HR,y0HR, WHR, WLR, n):
     PSFLR = 0.
 
     for i in range(len(x0HR)):
-        Ra0, Dec0 = WHR.all_pix2world(y0HR[i], x0HR[i], 0)
+
+        FHRcopy = np.copy(FHR*0)
+        FHRcopy[x0HR[i]-25:x0HR[i]+25, y0HR[i]-25:y0HR[i]+25] = FHR[x0HR[i]-25:x0HR[i]+25, y0HR[i]-25:y0HR[i]+25]
+        xm, ym = np.where(FHRcopy == np.max(FHRcopy))
+
+        Ra0, Dec0 = WHR.all_pix2world(ym, xm, 0)
         y0LR, x0LR = WLR.all_world2pix(Ra0, Dec0, 0)
+        x0LR, y0LR = np.int(x0LR), np.int(y0LR)
 
-        xHR, yHR, XLR, YLR, XHR, YHR = match_patches(x0HR[i], y0HR[i], WLR, WHR, np.int(n/2)+1)
-        Star_HR, Star_LR = make_patches(xHR, yHR, XLR, YLR, FHR, FLR)
+        FLRcopy = np.copy(FLR*0)
+        FLRcopy[x0LR-25:x0LR+25, y0LR-25:y0LR+25] = FLR[x0LR-25:x0LR+25, y0LR-25:y0LR+25]
+        Xm, Ym = np.where(FLRcopy == np.max(FLRcopy))
 
-        n1,n2 = Star_HR.shape
-        N1,N2 = Star_LR.shape
+        xHR, yHR, XLR, YLR, XHR, YHR = match_patches(xm, ym, WLR, WHR, np.int(n/2)+1)
 
-        xmLR,ymLR = np.where(Star_LR == np.max(Star_LR))
-        xpLR = x0LR + (xmLR-N1/2)
-        ypLR = y0LR + (ymLR-N2/2)
-    #    plt.imshow(Star_LR);
-    #    plt.show()
-    #    Star_LR = FLR[np.int(xpLR-N1/2):np.int(xpLR+N1/2),np.int(ypLR-N2/2):np.int(ypLR+N2/2)]
-    #    plt.imshow(Star_LR);
-    #    plt.show()
+        n1 = np.int(xHR.size**0.5)
+        N1 = np.int(XLR.size**0.5)
 
-        xmHR,ymHR = np.where(Star_HR == np.max(Star_HR))
-        xpHR = x0HR[i]+(xmHR-n1/2)
-        ypHR = y0HR[i]+(ymHR-n2/2)
-#        plt.imshow(Star_HR); plt.show()
-#        Star_HR = FHR[np.int(xpHR-n1/2):np.int(xpHR+n1/2),np.int(ypHR-n2/2):np.int(ypHR+n2/2)]
-#        plt.imshow(Star_HR); plt.show()
-        print(Star_HR.shape, Star_LR.shape, XHR.shape, xHR.shape)
+        Star_LR = FLR[np.int(Xm-N1/2):np.int(Xm+N1/2),np.int(Ym-N1/2):np.int(Ym+N1/2)]
+        Star_HR = FHR[np.int(xm - n1 / 2):np.int(xm + n1 / 2), np.int(ym - n1 / 2):np.int(ym + n1 / 2)]
+
 
         sigmaLR = MAD(Star_LR, n=3)
         sigmaHR = MAD(Star_HR, n=3)
-        PSFtLR = wine.MCA.mr_filter(Star_LR, 20, 5, sigmaLR, lvl = np.int(np.log2(N1)))[0]
+        PSFtLR = wine.MCA.mr_filter(Star_LR, 20, 5, sigmaLR, lvl = np.int(np.log2(N1-1)))[0]
         PSFtHR = wine.MCA.mr_filter(Star_HR, 20, 5, sigmaHR, lvl=np.int(np.log2(n1)))[0]
 
-        plt.imshow(np.log(PSFtLR)); plt.show()
-
-        PSFtLR = interp2D(xHR.flatten(),yHR.flatten(), XHR.flatten(), YHR.flatten(), PSFtLR.flatten()).reshape(n1,n2)
+        PSFtLR = interp2D(xHR.flatten(),yHR.flatten(), XHR.flatten()-1, YHR.flatten()-1, PSFtLR.flatten()).reshape(n1,n1)
 
         PSFLR += PSFtLR / np.sum(PSFtLR)
         PSFHR += PSFtHR / np.sum(PSFtHR)
@@ -332,14 +278,13 @@ def linorm2D_filter(filter, filterT, shape, nit):
 
 
 
-def Combine2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, verbosity = 0, reg_HR = 0):
+def Combine2D_filter(HR, LR, matLR, niter, reg_nn = None, verbosity = 0, reg_HR = 0):
 
-    n = HR.size
-    n1 = np.int(HR.size**0.5)
-    n2 = np.int(HR.size ** 0.5)
-    N = LR.size
-    sigma_HR = MAD(HR.reshape(np.int(n**0.5), np.int(n**0.5)))
-    sigma_LR = MAD(LR.reshape(np.int(N**0.5), np.int(N**0.5)))
+
+    n1, n2 = np.shape(HR)
+    N1, N2 = np.shape(LR)
+    sigma_HR = MAD(HR.reshape(n1,n2), shape = (n1,n2))
+    sigma_LR = MAD(LR.reshape(N1,N2), shape = (N1,N2))
 
     reg_LR = np.mean(np.sum(matLR ** 2, axis=1) ** 0.5)
 
@@ -347,17 +292,21 @@ def Combine2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, verbosity = 0,
     wvar_HR = (1./sigma_HR**2)*(1./var_norm)
     wvar_LR = (1./sigma_LR**2)*(1./var_norm)
 
-    mu1 = linorm2D_filter(filter_HR, filter_HRT, HR.size, 10)/10.
-    mu2 = linorm2D(matLR, 10)/1.
-    mu = (mu1+mu2)/2
+    mu1 = 1./1.#linorm2D_filter(filter_HR, filter_HRT, HR.size, 10)
+    mu2 = linorm2D(matLR, 10)
+    mu = 2./(1./mu1+1./mu2)
+    print(mu1, mu2, mu)
 
     if reg_HR >0:
 
         thresh = sigma_HR*reg_HR + sigma_LR*reg_LR
 
-    Sa = np.zeros((HR.size))
-    SH = np.zeros((HR.size))
-    SL = np.zeros((HR.size))
+    LR = LR.flatten()
+    HR = HR.flatten()
+
+    Sa = np.ones((n1,n2))*sigma_HR
+    SH = np.ones((n1,n2))*sigma_HR
+    SL = np.ones((n1,n2))*sigma_HR
     vec = np.zeros(niter)
     vec2 = np.zeros(niter)
     vec3 = np.zeros(niter)
@@ -365,34 +314,58 @@ def Combine2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, verbosity = 0,
     for i in range(niter):
         if (i % 100+1 == True) and (verbosity == 1):
             print('Current iteration: ', i, ', time: ', time.clock()-t0)
-            plt.imshow((LR - np.dot(Sa, matLR)).reshape(np.int(N**0.5), np.int(N**0.5)))
+
+            plt.imshow((LR - np.dot(Sa.flatten(), matLR)).reshape(N1,N2))
 
             plt.savefig('Residuals_HSC_'+str(i)+'.png')
-        Sa += mu1 * np.dot(LR - np.dot(Sa, matLR), matLR.T)*wvar_LR + mu2 * filter_HRT(HR-filter_HR(Sa.reshape(n1,n2))).reshape(n)*wvar_HR
+        if reg_nn != None:
+            S = np.sum(Sa)
+            if i == 0:
+                xm, ym = n1/2, n2/2
+            else:
+                xm, ym = np.where(Sa==np.max(Sa))
+            Sa_nn = reg_nn(Sa[np.int(xm-16):np.int(xm+16), np.int(ym-16):np.int(ym+16)]/S)
+        Sa += mu * (np.dot(LR - np.dot(Sa.flatten(), matLR), matLR.T)*wvar_LR + mu*(HR-Sa.flatten())*wvar_HR).reshape(n1,n2)#mu * filter_HRT(HR-filter_HR(Sa.reshape(n1,n2))).reshape(n)*wvar_HR
+        if reg_nn != None:
+            Sa[np.int(xm-16):np.int(xm+16), np.int(ym-16):np.int(ym+16)] -= 1e-6*Sa_nn*S
 
 
         if reg_HR >0:
-            S = np.copy(Sa)
-            Sa, jk = wine.MCA.mr_filter(Sa.reshape(n1,n2), 20, 5, thresh)
-            Sa = np.reshape(Sa, (n1*n2))
 
-            if (i % 100 + 1 == True) and (verbosity == 1):
-                plt.subplot(121)
-                plt.imshow(S.reshape(n1,n2))
-                plt.subplot(122)
-                plt.imshow(Sa.reshape(n1,n2))
-                plt.show()
+            Sa, jk = wine.MCA.mr_filter(Sa, 20, 5, thresh)
+        if reg_nn != None:
+            S = np.sum(SL)
+            if i == 0:
+                xm, ym = n1/2, n2/2
+            else:
+                xm, ym = np.where(SL == np.max(SL))
+            SL_nn = reg_nn(SL[np.int(xm-16):np.int(xm+16), np.int(ym-16):np.int(ym+16)]/S)
+        SL += mu2 * np.dot(LR - np.dot(SL.flatten(), matLR), matLR.T).reshape(n1,n2)
+        if reg_nn != None:
+            SL[np.int(xm-16):np.int(xm+16), np.int(ym-16):np.int(ym+16)] -= 1e-6 * SL_nn*S
 
-        SL += mu2 * np.dot(LR - np.dot(SL, matLR), matLR.T)
         if i < 10000:
-            SH += mu1 * filter_HRT(HR-filter_HR(SH.reshape(n1,n2))).reshape(n)
-            SH[SH < 0] = 0
+            if reg_nn != None:
+                S = np.sum(SH)
+                if i == 0:
+                    xm, ym = n1 / 2, n2 / 2
+                else:
+                    xm, ym = np.where(SH == np.max(SH))
+                SH_nn = reg_nn(SH[np.int(xm - 16):np.int(xm + 16), np.int(ym - 16):np.int(ym + 16)]/S)
+            SH += mu1 * (HR-SH.flatten()).reshape(n1,n2)
+            if reg_nn != None:
+                SH[np.int(xm - 16):np.int(xm + 16), np.int(ym - 16):np.int(ym + 16)] -= 1e-6 * SH_nn*S
+            #SH[SH < 0] = 0
         Sa[Sa < 0] = 0
         SL[SL < 0] = 0
 
-        vec[i] = np.std(LR - np.dot(Sa, matLR))**2/2./sigma_LR**2 + np.std(HR-filter_HR(Sa.reshape(n1,n2)))**2*wvar_LR/2./sigma_HR**2
-        vec2[i] = np.std(LR - np.dot(SL, matLR))**2/sigma_LR**2
-        vec3[i] = np.std(HR - filter_HR(SH.reshape(n1,n2)))**2/sigma_HR**2
+        #Sa /= np.sum(Sa) / (n1*n2)
+        #SL /= np.sum(SL) / (n1 * n2)
+        #SH /= np.sum(SH) / (n1 * n2)
+
+        vec[i] = np.std(LR - np.dot(Sa.flatten(), matLR))**2/2./sigma_LR**2 + np.std(HR-Sa.flatten())**2*wvar_LR/2./sigma_HR**2
+        vec2[i] = np.std(LR - np.dot(SL.flatten(), matLR))**2/sigma_LR**2
+        vec3[i] = np.std(HR - (SH.flatten()))**2/sigma_HR**2
     #    plt.subplot(121)
     #    plt.imshow((LR - np.dot(Sall, matLR)).reshape(N1,N2))
     #    plt.subplot(122)
@@ -522,6 +495,7 @@ def Deblend2D_filter(HR, LR, filter_HR, filter_HRT, matLR, niter, nc, verbosity 
 
         AHR[AHR<0] = 0
         ALR[ALR < 0] = 0
+
         for j in range(nc):
 
             AHR[j,:] = AHR[j,:]/(AHR[j,:]+ALR[j,:])
@@ -557,29 +531,28 @@ def match_patches(x0,y0,WLR, WHR, excess):
     ystart = y0 - excess
     ystop = y0 + excess
 
-    XX = np.linspace(xstart, xstop, 2*excess + 1)
-    YY = np.linspace(ystart, ystop, 2*excess + 1)
+    XX = np.linspace(xstart, xstop, xstop-xstart + 1)
+    YY = np.linspace(ystart, ystop, xstop-xstart + 1)
 
     x, y = np.meshgrid(XX, YY)
     x_HR = x.flatten().astype(int) + 0.5
     y_HR = y.flatten().astype(int) + 0.5
-    Ra_HR, Dec_HR = WHR.all_pix2world(y_HR, x_HR, 0)
 
     # LR coordinates
 
-    Ramin, Decmin = WHR.all_pix2world(ystart, xstart, 0)
-    Ramax, Decmax = WHR.all_pix2world(ystop, xstop, 0)
-    Ymin, Xmin = WLR.all_world2pix(Ramin, Decmin, 0)
-    Ymax, Xmax = WLR.all_world2pix(Ramax, Decmax, 0)
+    Ramin, Decmin = WHR.wcs_pix2world(ystart, xstart, 0)
+    Ramax, Decmax = WHR.wcs_pix2world(ystop, xstop, 0)
+    Ymin, Xmin = WLR.wcs_world2pix(Ramin, Decmin, 0)
+    Ymax, Xmax = WLR.wcs_world2pix(Ramax, Decmax, 0)
 
-    X = np.linspace(Xmin, Xmax-1, Xmax-Xmin)
-    Y = np.linspace(Ymin, Ymax-1, Ymax-Ymin)
+    X = np.linspace(np.int(Xmin), np.int(Xmax), np.int(Xmax)-np.int(Xmin)+1)
+    Y = np.linspace(np.int(Ymin), np.int(Ymax), np.int(Ymax)-np.int(Ymin)+1)
 
     X, Y = np.meshgrid(X, Y)
-    X_LR = X.flatten() + 0.5
-    Y_LR = Y.flatten() + 0.5
-    Ra_LR, Dec_LR = WLR.all_pix2world(Y_LR, X_LR, 0)  # type:
-    Y_HR, X_HR = WHR.all_world2pix(Ra_LR, Dec_LR, 0)
+    X_LR = X.flatten().astype(int) + 0.5
+    Y_LR = Y.flatten().astype(int) + 0.5
+    Ra_LR, Dec_LR = WLR.wcs_pix2world(Y_LR, X_LR, 0)  # type:
+    Y_HR, X_HR = WHR.wcs_world2pix(Ra_LR, Dec_LR, 0)
 
     return x_HR, y_HR, X_LR, Y_LR, X_HR, Y_HR
 
@@ -592,13 +565,20 @@ def make_patches(x_HR, y_HR, X_LR, Y_LR, Im_HR, Im_LR):
     :return: Patch_HR, Patch_LR
     '''
 
-    N1 = np.int(X_LR.size**0.5)
-    N2 = np.int(Y_LR.size**0.5)
-    n1 = np.int(x_HR.size**0.5)
-    n2 = np.int(y_HR.size**0.5)
+    x_HR = x_HR.astype(int)
+    y_HR = y_HR.astype(int)
+    X_LR = X_LR.astype(int)
+    Y_LR = Y_LR.astype(int)
 
-    cut_HR = Im_HR[x_HR.astype(int), y_HR.astype(int)].reshape(n1,n2)
-    cut_LR = Im_LR[X_LR.astype(int)+1, Y_LR.astype(int)+1].reshape(N1,N2)
+
+    N1 = np.max(X_LR)-np.min(X_LR)+1
+    N2 = np.max(Y_LR)-np.min(Y_LR)+1
+
+    n1 = np.max(x_HR)-np.min(x_HR)+1
+    n2 = np.max(y_HR)-np.min(y_HR)+1
+
+    cut_HR = Im_HR[x_HR, y_HR].reshape(n2,n1)
+    cut_LR = Im_LR[X_LR, Y_LR].reshape(N2,N1)
 
     cut_HR /= np.sum(cut_HR)/(n1 * n2)
     cut_LR /= np.sum(cut_LR)/(N1 * N2)
