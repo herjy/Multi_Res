@@ -73,22 +73,19 @@ else:
 #########large###big##big##faint#####works
 
 
-x0 = 6726#6296#6284#6296#5388#5388#2675 #1436 #5992#5388 -8  #9132 -6
-y0 = 13113#13632#11195#13632#14579 #14579#4888 #1109 #1926#14579 -4 #10825 -4
-excess =61
+x0 = 12650 #6296  #6147 #6284  #12718#6726  #5388   #2675 #
+y0 = 1080 #13632 #5964 #11195 #10187#13113 #14579  #4888 #
+excess = 61
 
 x_HST, y_HST, X_HSC, Y_HSC, X_HST, Y_HST = tools.match_patches(x0,y0,WHSC, WHST, excess)
 
-cut_HST, cut_HSC = tools.make_patches(x_HST-8, y_HST-5, X_HSC, Y_HSC, FHST, FHSC)
+cut_HST, cut_HSC = tools.make_patches(x_HST-6, y_HST-6, X_HSC, Y_HSC, FHST, FHSC)
 
 n1, n2 = cut_HST.shape
 N1, N2 = cut_HSC.shape
 
 #cut_HST += np.random.randn(n1,n2)*tools.MAD(cut_HST)*5
 
-plt.plot(x_HST,y_HST,'or')
-plt.plot(X_HST,Y_HST, 'ob')
-plt.show()
 
 print(n1,n2,N1,N2)
 
@@ -151,7 +148,7 @@ out = pixelcnn(x_nn, as_dict=True)['grads']
 def grad_nn(y):
     return sess.run(out, feed_dict={x_nn: y.reshape((1,32,32,1))})[0,:,:,0]
 
-niter = 500
+niter = 1000
 nc = 2
 Sall, SHR, SLR = tools.Combine2D_filter(cut_HST, cut_HSC, mat_HSC, niter, reg_nn = grad_nn, verbosity = 1, reg_HR =0)
 #Sall = tools.Deblend2D_filter(cut_HST.flatten(), cut_HSC.flatten(), filter_HR, filter_HRT, mat_HSC, niter, nc, verbosity = 1)
@@ -162,13 +159,13 @@ Sall, SHR, SLR = tools.Combine2D_filter(cut_HST, cut_HSC, mat_HSC, niter, reg_nn
 
 hdus = fits.PrimaryHDU(Sall.reshape(n1,n2))
 lists = fits.HDUList([hdus])
-lists.writeto('../HSTC/HSTC_Sall_patch1.fits', clobber=True)
+lists.writeto('../HSTC/HSTC_Sall_cnn.fits', clobber=True)
 hdus = fits.PrimaryHDU(SHR.reshape(n1,n2))
 lists = fits.HDUList([hdus])
-lists.writeto('../HSTC/HSTC_SHR_patch1.fits', clobber=True)
+lists.writeto('../HSTC/HSTC_SHR_cnn.fits', clobber=True)
 hdus = fits.PrimaryHDU(SLR.reshape(n1,n2))
 lists = fits.HDUList([hdus])
-lists.writeto('../HSTC/HSTC_SLR_patch1.fits', clobber=True)
+lists.writeto('../HSTC/HSTC_SLR_cnn.fits', clobber=True)
 
 if 1:
     font = 25

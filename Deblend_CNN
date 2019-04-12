@@ -1,0 +1,261 @@
+import numpy as np
+import tools
+import matplotlib.pyplot as plt
+
+import tensorflow_hub as hub
+import tensorflow as tf
+import sep
+
+import scarlet
+from astropy.wcs import WCS
+import astropy.io.fits as fits
+import warnings
+warnings.simplefilter("ignore")
+
+
+hdu_HST= fits.open('/Users/remy/Desktop/LSST_Project/Multi_Resolution/HSTC/acs_I_030mas_029_sci.fits')
+hdu_HSC= fits.open('/Users/remy/Desktop/LSST_Project/Multi_Resolution/HSTC/cutout-HSC-I-9813-pdr1_udeep-190227-231046.fits')
+FHST = hdu_HST[0].data
+FHSC = hdu_HSC[1].data
+hdr_HST= hdu_HST[0].header
+hdr_HSC= hdu_HSC[1].header
+FHSC -= np.median(FHSC)
+
+
+WHST =WCS(hdu_HST[0].header)
+WHSC = WCS(hdu_HSC[1].header)
+
+#PSF
+PSF_HSC = fits.open('../HSTC/PSF_HSC_29.fits')[0].data
+
+#HST coordinates
+#########large###big##big##faint#####works
+
+
+x0 = 5191 # 12650
+y0 = 200 # 1080
+excess =61
+
+x_HST, y_HST, X_HSC, Y_HSC, X_HST, Y_HST = tools.match_patches(x0,y0,WHSC, WHST, excess)
+
+cut_HST, cut_HSC = tools.make_patches(x_HST-8, y_HST-8, X_HSC, Y_HSC, FHST, FHSC)
+
+n1, n2 = cut_HST.shape
+N1, N2 = cut_HSC.shape
+
+#cut_HST += np.random.randn(n1,n2)*tools.MAD(cut_HST)*5
+
+plt.plot(x_HST,y_HST,'or')
+plt.plot(X_HST,Y_HST, 'ob')
+plt.show()
+
+print(n1,n2,N1,N2)
+
+plt.subplot(121)
+plt.imshow(cut_HST, cmap = 'inferno', interpolation = 'nearest')
+plt.colorbar()
+plt.subplot(122)
+plt.imshow(cut_HSC, cmap = 'inferno', interpolation = 'nearest')
+plt.colorbar()
+plt.show()
+
+
+hdus = fits.PrimaryHDU(cut_HST, header = hdr_HST)
+lists = fits.HDUList([hdus])
+lists.writeto('../HSTC/Cut_HST_blend.fits', clobber=True)
+
+hdus = fits.PrimaryHDU(cut_HSC, header = hdr_HSC)
+lists = fits.HDUList([hdus])
+lists.writeto('../HSTC/Cut_HSC_blend.fits', clobber=True)
+
+
+
+compute = 1
+if compute:
+    print('Computing Low Resolution matrix')
+    mat_HSC = tools.make_mat2D_fft(x_HST, y_HST, X_HST, Y_HST, PSF_HSC)
+
+    hdus = fits.PrimaryHDU(mat_HSC)
+    lists = fits.HDUList([hdus])
+    lists.writeto('../HSTC/Mat_HSC_'+str(n1)+'.fits', clobber=True)
+
+if np.abs(compute-1):
+    mat_HSC = fits.open('../HSTC/Mat_HSC_'+str(n1)+'.fits')[0].data
+
+
+print('Noise in HST:', tools.MAD(cut_HST))
+print('Noise in HSC:', tools.MAD(cut_HSC))
+
+
+np1, np2 = 32, 32
+module_path='/Users/remy/Desktop/LSST_Project/scarlet_Pixelcnn/scarlet-pixelcnn/modules/pixelcnn_out'
+pixelcnn = hub.Module(module_path)
+sess= tf.Session()
+sess.run(tf.global_variables_initializer())
+x_nn = tf.placeholder(shape=(1, np1, np2, 1), dtype=tf.float32)
+
+out = pixelcnn(x_nn, as_dict=True)['grads']
+
+def grad_nn(y):
+    return sess.run(out, feed_dict={x_nn: y.reshape((1, np1, np2, 1))})[0,:,:,0]
+
+objects_truth = sep.extract(cut_HST/np.sum(cut_HST), tools.MAD(cut_HST/np.sum(cut_HST))*5)
+xo,yo = objects_truth['x'], objects_truth['y']
+
+objects_LR = sep.extract(cut_HSC/np.sum(cut_HSC), tools.MAD(cut_HSC/np.sum(cut_HSC))*5)
+
+plt.subplot(121)
+plt.imshow(cut_HST, interpolation = None, cmap = 'gray')
+plt.plot(objects_truth['x'],objects_truth['y'], 'xb', label = 'Original', ms = 10, mew = 5)
+plt.axis('off')
+plt.subplot(122)
+plt.imshow(cut_HSC, interpolation = None, cmap = 'gray')
+plt.plot(objects_LR['x'],objects_LR['y'], 'xb', label = 'Original', ms = 10, mew = 5)
+plt.axis('off')
+plt.show()
+
+niter = 500
+nc = 2
+Sall, SHR, SLR = tools.Deblend_cnn(cut_HST, cut_HSC, mat_HSC, (xo,yo),niter,n_patch = (np1, np2), reg_nn = grad_nn, verbosity = 1)
+
+hdus = fits.PrimaryHDU(Sall.reshape(xo.size,n1,n2))
+lists = fits.HDUList([hdus])
+lists.writeto('../HSTC/HSTC_Sall_cnn.fits', clobber=True)
+hdus = fits.PrimaryHDU(SHR.reshape(xo.size,n1,n2))
+lists = fits.HDUList([hdus])
+lists.writeto('../HSTC/HSTC_SHR_cnn.fits', clobber=True)
+hdus = fits.PrimaryHDU(SLR.reshape(xo.size,n1,n2))
+lists = fits.HDUList([hdus])
+lists.writeto('../HSTC/HSTC_SLR_cnn.fits', clobber=True)
+
+
+n = Sall.shape[0]
+if 1:
+    font = 20
+    for i in range(n):
+        plt.figure(i)
+        plt.subplot(131)
+        plt.imshow(Sall[i,:,:], interpolation = 'None', cmap = 'inferno')
+        plt.colorbar()
+        plt.title('Joint', fontsize = font)
+        plt.axis('off')
+        plt.subplot(132)
+        plt.imshow(SHR[i, :, :], interpolation='None', cmap='inferno')
+        plt.colorbar()
+        plt.title('High Resolution', fontsize=font)
+        plt.axis('off')
+        plt.subplot(133)
+        plt.imshow(SLR[i, :, :], interpolation='None', cmap='inferno')
+        plt.colorbar()
+        plt.title('Low_resolution', fontsize=font)
+        plt.axis('off')
+        plt.savefig('Images/Deblending_components_'+str(x0)+'_'+str(y0)+'.png')
+
+    plt.figure(i+1)
+    plt.subplot(141)
+    plt.imshow(np.sum(Sall, axis = 0), interpolation='None', cmap='inferno')
+    plt.colorbar()
+    plt.title('Joint model HST', fontsize=font)
+    plt.axis('off')
+    plt.subplot(142)
+    plt.imshow(np.sum(SHR, axis = 0), interpolation='None', cmap='inferno')
+    plt.colorbar()
+    plt.title('HST model HST', fontsize=font)
+    plt.axis('off')
+    plt.subplot(143)
+    plt.imshow(np.sum(SLR, axis = 0), interpolation='None', cmap='inferno')
+    plt.colorbar()
+    plt.title('HSC model HST', fontsize=font)
+    plt.axis('off')
+    plt.subplot(144)
+    plt.imshow(cut_HST, interpolation='None', cmap='inferno')
+    plt.colorbar()
+    plt.title('HST Image', fontsize=font)
+    plt.axis('off')
+    plt.savefig('Images/Deblending_Model_HST_' + str(x0) + '_' + str(y0) + '.png')
+
+    plt.figure(i+2)
+    plt.subplot(141)
+    plt.imshow(np.dot(np.sum(Sall, axis = 0).flatten(), mat_HSC).reshape(N1,N2), interpolation='None', cmap='inferno')
+    plt.colorbar()
+    plt.title('Joint model HSC', fontsize=font)
+    plt.axis('off')
+    plt.subplot(142)
+    plt.imshow(np.dot(np.sum(SHR, axis = 0).flatten(), mat_HSC).reshape(N1,N2), interpolation='None', cmap='inferno')
+    plt.colorbar()
+    plt.title('HST model HSC', fontsize=font)
+    plt.axis('off')
+    plt.subplot(143)
+    plt.imshow(np.dot(np.sum(SLR, axis = 0).flatten(), mat_HSC).reshape(N1,N2), interpolation='None', cmap='inferno')
+    plt.colorbar()
+    plt.title('HSC model HSC', fontsize=font)
+    plt.axis('off')
+    plt.subplot(144)
+    plt.imshow(cut_HSC, interpolation='None', cmap='inferno')
+    plt.colorbar()
+    plt.title('HSC Image', fontsize=font)
+    plt.axis('off')
+    plt.savefig('Images/Deblending_Model_HSC_' + str(x0) + '_' + str(y0) + '.png')
+
+    plt.figure(i+3)
+    plt.subplot(421)
+    plt.imshow(cut_HST, interpolation='None', cmap='inferno')
+    plt.colorbar()
+    plt.title('HST Image', fontsize=font)
+    plt.axis('off')
+    plt.subplot(422)
+    plt.imshow(cut_HSC, interpolation='None', cmap='inferno')
+    plt.colorbar()
+    plt.title('HSC Image', fontsize=font)
+    plt.axis('off')
+    plt.subplot(423)
+    plt.imshow(cut_HST-np.sum(Sall, axis = 0), interpolation='None', cmap='inferno')
+    plt.colorbar()
+    plt.title('HST Residual Joint', fontsize=font)
+    plt.axis('off')
+    plt.subplot(424)
+    plt.imshow(cut_HSC-np.dot(np.sum(Sall, axis = 0).flatten(), mat_HSC).reshape(N1,N2), interpolation='None', cmap='inferno')
+    plt.colorbar()
+    plt.title('HSC Residuals Joint', fontsize=font)
+    plt.axis('off')
+    plt.subplot(425)
+    plt.imshow(cut_HST-np.sum(SHR, axis = 0), interpolation='None', cmap='inferno')
+    plt.colorbar()
+    plt.title('HST Residual HST', fontsize=font)
+    plt.axis('off')
+    plt.subplot(426)
+    plt.imshow(cut_HSC-np.dot(np.sum(SHR, axis = 0).flatten(), mat_HSC).reshape(N1,N2), interpolation='None', cmap='inferno')
+    plt.colorbar()
+    plt.title('HSC Residuals HST', fontsize=font)
+    plt.axis('off')
+    plt.subplot(427)
+    plt.imshow(cut_HST-np.sum(SLR, axis = 0), interpolation='None', cmap='inferno')
+    plt.colorbar()
+    plt.title('HST Residual HSC', fontsize=font)
+    plt.axis('off')
+    plt.subplot(428)
+    plt.imshow(cut_HSC-np.dot(np.sum(SLR, axis = 0).flatten(), mat_HSC).reshape(N1,N2), interpolation='None', cmap='inferno')
+    plt.colorbar()
+    plt.title('HSC Residuals HSC', fontsize=font)
+    plt.axis('off')
+
+    plt.figure(i+4)
+    for j in range(n):
+        plt.subplot(1,n+2,j+1)
+        plt.imshow(Sall[j,:,:], interpolation='None', cmap='inferno')
+        plt.colorbar()
+        plt.title('Component'+str(i), fontsize=font)
+        plt.axis('off')
+    plt.subplot(1, n + 2, j + 2)
+    plt.imshow(cut_HST, interpolation='None', cmap='inferno' )
+    plt.colorbar()
+    plt.title('HST image', fontsize=font)
+    plt.axis('off')
+    plt.subplot(1, n+2, j+3)
+    plt.imshow(cut_HST, interpolation='None', cmap='inferno' )
+    plt.colorbar()
+    plt.title('HSC image', fontsize=font)
+    plt.axis('off')
+
+
+plt.show()

@@ -73,18 +73,18 @@ else:
 #########large###big##big##faint#####works
 
 
-x0 = 10873 #9376 #9150 #7374 #
-y0 = 10704 #10117 #9633 #10593 #
-excess =71
+x0 = 10873  #9150 #7374 #
+y0 = 10704 #9633 #10593 #
+excess =61
 
 x_HST, y_HST, X_HSC, Y_HSC, X_HST, Y_HST = tools.match_patches(x0,y0,WHSC, WHST, excess)
 
-cut_HST, cut_HSC = tools.make_patches(x_HST-2, y_HST-2, X_HSC, Y_HSC, FHST, FHSC)
+cut_HST, cut_HSC = tools.make_patches(x_HST-3, y_HST-1, X_HSC, Y_HSC, FHST, FHSC)
 
 n1, n2 = cut_HST.shape
 N1, N2 = cut_HSC.shape
 
-cut_HST+=np.random.randn(n1,n2)*tools.MAD(cut_HST, shape = (n1,n2))*5
+cut_HST+=np.random.randn(n1,n2)*tools.MAD(cut_HST, shape = (n1,n2))*2
 
 #cut_HST += np.random.randn(n1,n2)*tools.MAD(cut_HST)*5
 
@@ -117,6 +117,11 @@ if compute:
     print('Computing Low Resolution matrix')
     mat_HSC = tools.make_mat2D_fft(x_HST, y_HST, X_HST, Y_HST, PSF_HSC)
 
+    N = np.int((n1 * n2 - N1 * N2) / 2)
+  #  mat = np.pad(mat_HSC, ((0,0), (N,N)), mode = 'constant')
+  #  for k in range(mat.shape[1])
+  #  plt.plot(mat.T); plt.show()
+
     hdus = fits.PrimaryHDU(mat_HSC)
     lists = fits.HDUList([hdus])
     lists.writeto('../HSTC/Mat_HSC_'+str(n1)+'.fits', clobber=True)
@@ -127,6 +132,7 @@ h = x_HST[1]-x_HST[0]
 
 if np.abs(compute-1):
     mat_HSC = fits.open('../HSTC/Mat_HSC_'+str(n1)+'.fits')[0].data
+
 
 
 #def filter_HR(x):
@@ -141,17 +147,17 @@ print('Noise in HST:', tools.MAD(cut_HST, shape = (n1,n2)))
 print('Noise in HSC:', tools.MAD(cut_HSC, shape = (N1,N2)))
 
 
-module_path='/Users/remy/Desktop/LSST_Project/scarlet_Pixelcnn/scarlet-pixelcnn/modules/pixelcnn_out'
-pixelcnn = hub.Module(module_path)
-sess= tf.Session()
-sess.run(tf.global_variables_initializer())
-x_nn = tf.placeholder(shape=(1,32,32,1), dtype=tf.float32)
+#module_path='/Users/remy/Desktop/LSST_Project/scarlet_Pixelcnn/scarlet-pixelcnn/modules/pixelcnn_out'
+#pixelcnn = hub.Module(module_path)
+#sess= tf.Session()
+#sess.run(tf.global_variables_initializer())
+#x_nn = tf.placeholder(shape=(1,32,32,1), dtype=tf.float32)
 
-out = pixelcnn(x_nn, as_dict=True)['grads']
-def grad_nn(y):
-    return sess.run(out, feed_dict={x_nn: y.reshape((1,32,32,1))})[0,:,:,0]
+#out = pixelcnn(x_nn, as_dict=True)['grads']
+#def grad_nn(y):
+#    return sess.run(out, feed_dict={x_nn: y.reshape((1,32,32,1))})[0,:,:,0]
 
-niter = 500
+niter = 2000
 nc = 2
 Sall, SHR, SLR = tools.Combine2D_filter(cut_HST, cut_HSC, mat_HSC, niter, reg_nn = None, verbosity = 1, reg_HR =0)
 #Sall = tools.Deblend2D_filter(cut_HST.flatten(), cut_HSC.flatten(), filter_HR, filter_HRT, mat_HSC, niter, nc, verbosity = 1)
@@ -225,4 +231,15 @@ if 1:
     plt.imshow(cut_HSC - np.dot(SLR.flatten(), mat_HSC).reshape(N1,N2), interpolation = 'none', cmap = 'inferno')
     plt.colorbar()
     plt.axis('off')
+    plt.show()
+
+
+    R_HSC = cut_HSC - np.dot(Sall.flatten(), mat_HSC)
+    plt.figure(93)
+    plt.subplot(121)
+    plt.imshow((np.dotRHSC.flatten(), mat_HSC.T).reshape(n1, n2), interpolation='none', cmap='inferno')
+    plt.colorbar()
+    plt.subplot(122)
+    plt.imshow(cut_HST - (Sall), interpolation = 'none', cmap = 'inferno')
+    plt.colrobar()
     plt.show()

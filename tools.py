@@ -324,10 +324,17 @@ def Combine2D_filter(HR, LR, matLR, niter, reg_nn = None, verbosity = 0, reg_HR 
                 xm, ym = n1/2, n2/2
             else:
                 xm, ym = np.where(Sa==np.max(Sa))
+                xm = np.min([np.max([xm, 17]), n1 - 17])
+                ym = np.min([np.max([ym, 17]), n2 - 17])
             Sa_nn = reg_nn(Sa[np.int(xm-16):np.int(xm+16), np.int(ym-16):np.int(ym+16)]/S)
         Sa += mu * (np.dot(LR - np.dot(Sa.flatten(), matLR), matLR.T)*wvar_LR + mu*(HR-Sa.flatten())*wvar_HR).reshape(n1,n2)#mu * filter_HRT(HR-filter_HR(Sa.reshape(n1,n2))).reshape(n)*wvar_HR
         if reg_nn != None:
+
             Sa[np.int(xm-16):np.int(xm+16), np.int(ym-16):np.int(ym+16)] -= 1e-6*Sa_nn*S
+            Sa[:np.int(xm - 16), :] = 0
+            Sa[np.int(xm + 16):,:] = 0
+            Sa[:, :np.int(ym - 16)] = 0
+            Sa[:, np.int(ym + 16):] = 0
 
 
         if reg_HR >0:
@@ -339,10 +346,19 @@ def Combine2D_filter(HR, LR, matLR, niter, reg_nn = None, verbosity = 0, reg_HR 
                 xm, ym = n1/2, n2/2
             else:
                 xm, ym = np.where(SL == np.max(SL))
+                xm = np.min([np.max([xm, 17]), n1 - 17])
+                ym = np.min([np.max([ym, 17]), n2 - 17])
+
             SL_nn = reg_nn(SL[np.int(xm-16):np.int(xm+16), np.int(ym-16):np.int(ym+16)]/S)
         SL += mu2 * np.dot(LR - np.dot(SL.flatten(), matLR), matLR.T).reshape(n1,n2)
         if reg_nn != None:
+
             SL[np.int(xm-16):np.int(xm+16), np.int(ym-16):np.int(ym+16)] -= 1e-6 * SL_nn*S
+            SL[:np.int(xm - 16), :] = 0
+            SL[np.int(xm + 16):, :] = 0
+            SL[:,:np.int(ym - 16)] = 0
+            SL[:, np.int(ym + 16):] = 0
+
 
         if i < 10000:
             if reg_nn != None:
@@ -351,13 +367,23 @@ def Combine2D_filter(HR, LR, matLR, niter, reg_nn = None, verbosity = 0, reg_HR 
                     xm, ym = n1 / 2, n2 / 2
                 else:
                     xm, ym = np.where(SH == np.max(SH))
+                xm = np.min([np.max([xm,17]),n1-17])
+                ym = np.min([np.max([ym, 17]), n2 - 17])
                 SH_nn = reg_nn(SH[np.int(xm - 16):np.int(xm + 16), np.int(ym - 16):np.int(ym + 16)]/S)
+
             SH += mu1 * (HR-SH.flatten()).reshape(n1,n2)
             if reg_nn != None:
+
                 SH[np.int(xm - 16):np.int(xm + 16), np.int(ym - 16):np.int(ym + 16)] -= 1e-6 * SH_nn*S
+                SH[:np.int(xm - 16), :] = 0
+                SH[np.int(xm + 16):,:] = 0
+                SH[:, :np.int(ym - 16)] = 0
+                SH[:, np.int(ym + 16):] = 0
             #SH[SH < 0] = 0
         Sa[Sa < 0] = 0
         SL[SL < 0] = 0
+
+
 
         #Sa /= np.sum(Sa) / (n1*n2)
         #SL /= np.sum(SL) / (n1 * n2)
@@ -373,12 +399,120 @@ def Combine2D_filter(HR, LR, matLR, niter, reg_nn = None, verbosity = 0, reg_HR 
     #    plt.show()
     if verbosity == 1:
         plt.show()
+        plt.plot(vec3, 'b', label='HR', linewidth=4)
+        plt.plot(vec2, 'g', label='LR', linewidth=3)
         plt.plot(vec, 'r', label = 'All', linewidth = 2)
-        plt.plot(vec2, 'g', label = 'LR', linewidth = 3)
-        plt.plot(vec3, 'b', label = 'HR', linewidth = 4)
+
+
         plt.show()
 
     return Sa, SH, SL
+
+
+
+def Deblend_cnn(HR, LR, matLR, coord, niter, reg_nn, n_patch = (32,32), verbosity = 0):
+
+
+    n1, n2 = np.shape(HR)
+    N1, N2 = np.shape(LR)
+
+
+    y0,x0 = coord
+    n = x0.size
+    assert n == y0.size
+
+    sigma_HR = MAD(HR.reshape(n1,n2), shape = (n1,n2))
+    sigma_LR = MAD(LR.reshape(N1,N2), shape = (N1,N2))
+
+    var_norm = 1./sigma_HR**2 + 1./sigma_LR**2
+    wvar_HR = (1./sigma_HR**2)*(1./var_norm)
+    wvar_LR = (1./sigma_LR**2)*(1./var_norm)
+
+    mu1 = 1./100.#linorm2D_filter(filter_HR, filter_HRT, HR.size, 10)
+    mu2 = linorm2D(matLR, 10)/1.
+    mu = 2./(1./mu1+1./mu2)
+    print(mu1, mu2, mu)
+
+    LR = LR.flatten()
+    HR = HR.flatten()
+
+    np1, np2 = n_patch
+    Sa = np.random.randn(n,n1,n2)*sigma_HR
+    SHR = np.random.randn(n,n1,n2)*sigma_HR
+    SLR = np.random.randn(n, n1, n2) * sigma_HR
+
+    masks = np.zeros((n,n1,n2))
+
+    for i in range(x0.size):
+        masks[i,np.int(x0[i]-np1/2):np.int(x0[i]+np1/2), np.int(y0[i]-np2/2):np.int(y0[i]+np2/2)]=1
+
+    vec = np.zeros(niter)
+    vec2 = np.zeros(niter)
+    vec3 = np.zeros(niter)
+
+    t0 =time.clock()
+    for i in range(niter):
+        if (i % 100+1 == True) and (verbosity == 1):
+            print('Current iteration: ', i, ', time: ', time.clock()-t0)
+
+            #plt.imshow((LR - np.dot(np.sum(Sa, axis = 0).flatten(), matLR)).reshape(N1,N2))
+
+            #plt.savefig('Residuals_HSC_'+str(i)+'.png')
+
+
+        #Resolution combination problem
+        S = np.sum(Sa.reshape(n, n1*n2),axis = 1)
+        R = mu * (np.dot(LR - np.dot(np.sum(Sa, axis=0).flatten(), matLR), matLR.T) * wvar_LR + mu * (HR - np.sum(Sa, axis=0).flatten()) * wvar_HR).reshape(n1, n2)
+        for j in range(n):
+            for k in range(1):
+                #plt.imshow(Sa[0]); plt.show()
+                Sa_nn = reg_nn(Sa[j,np.int(x0[j]-np1/2):np.int(x0[j]+np1/2), np.int(y0[j]-np2/2):np.int(y0[j]+np2/2)]/S[j])
+
+                Sa[j, np.int(x0[j]-np1/2):np.int(x0[j]+np1/2), np.int(y0[j]-np2/2):np.int(y0[j]+np2/2)] += R[np.int(x0[j]-np1/2):np.int(x0[j]+np1/2), np.int(y0[j]-np2/2):np.int(y0[j]+np2/2)] - 1e-6*Sa_nn*S[j]
+
+
+        #High resolution problem
+        S = np.sum(SHR.reshape(n, n1 * n2), axis=1)
+        R =  mu1 * (HR - np.sum(SHR, axis=0).flatten()).reshape(n1, n2)
+        for j in range(n):
+            for k in range(1):
+                #plt.imshow(Sa[0]); plt.show()
+                SHR_nn = reg_nn(SHR[j,np.int(x0[j]-np1/2):np.int(x0[j]+np1/2), np.int(y0[j]-np2/2):np.int(y0[j]+np2/2)]/S[j])
+
+                SHR[j, np.int(x0[j]-np1/2):np.int(x0[j]+np1/2), np.int(y0[j]-np2/2):np.int(y0[j]+np2/2)] += R[np.int(x0[j]-np1/2):np.int(x0[j]+np1/2), np.int(y0[j]-np2/2):np.int(y0[j]+np2/2)] - 1e-6*SHR_nn*S[j]
+
+        #Low resolution problem
+        S = np.sum(SLR.reshape(n, n1 * n2), axis=1)
+        R = mu * (np.dot(LR - np.dot(np.sum(SLR, axis=0).flatten(), matLR), matLR.T) ).reshape(n1, n2)
+        for j in range(n):
+            for k in range(1):
+                #plt.imshow(Sa[0]); plt.show()
+                SLR_nn = reg_nn(SLR[j,np.int(x0[j]-np1/2):np.int(x0[j]+np1/2), np.int(y0[j]-np2/2):np.int(y0[j]+np2/2)]/S[j])
+
+                SLR[j, np.int(x0[j]-np1/2):np.int(x0[j]+np1/2), np.int(y0[j]-np2/2):np.int(y0[j]+np2/2)] += R[np.int(x0[j]-np1/2):np.int(x0[j]+np1/2), np.int(y0[j]-np2/2):np.int(y0[j]+np2/2)] - 1e-6*SLR_nn*S[j]
+
+
+        SLR[SLR < 0] = 0
+        SHR[SHR < 0] = 0
+        Sa[Sa < 0] = 0
+
+
+        #Sa /= np.sum(Sa) / (n1*n2)
+        #SL /= np.sum(SL) / (n1 * n2)
+        #SH /= np.sum(SH) / (n1 * n2)
+
+        vec[i] = np.std(LR - np.dot(np.sum(Sa, axis = 0).flatten(), matLR))**2/2./sigma_LR**2 + np.std(HR-np.sum(Sa, axis = 0).flatten())**2*wvar_LR/2./sigma_HR**2
+        vec2[i] = np.std(LR - np.dot(np.sum(SLR, axis = 0).flatten(), matLR))**2/sigma_LR**2
+        vec3[i] = np.std(HR - np.sum(SHR, axis = 0).flatten()) ** 2 / sigma_LR ** 2
+
+
+    if verbosity == 1:
+        plt.plot(vec3, 'b', label='LR', linewidth=3)
+        plt.plot(vec2, 'g', label = 'LR', linewidth = 3)
+        plt.plot(vec, 'r', label='All', linewidth=2)
+        plt.show()
+
+    return Sa*masks, SHR*masks, SLR*masks
 
 def linorm2D_filterA(filter, filterT, A, shape, nit):
     """
